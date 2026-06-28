@@ -1,0 +1,104 @@
+# ====================================
+# 服务配置
+# ====================================
+server:
+  host: 0.0.0.0
+  port: 8000
+  debug: false
+  workers: 4
+  environment: development
+
+# ====================================
+# 日志配置
+# ====================================
+logging:
+  level: INFO
+  file_path: logs/x-rag-{time:YYYYMMDDHHmmss}.log
+  rotation: 1 day
+  retention: 7 days
+
+# ====================================
+# 向量模型配置
+# ====================================
+embedding:
+  model: BAAI/bge-m3
+  device: cuda
+  batch_size: 32
+  cache_size: 1000
+  normalize: true
+
+# ====================================
+# 向量存储配置
+# ====================================
+vector_store:
+  type: chroma
+  persist_directory: ./data/chroma
+  collection_name: documents
+  distance: cosine
+
+# ====================================
+# 文本切分配置
+# ====================================
+text_splitter:
+  chunk_size: 512
+  chunk_overlap: 50
+  separators:
+    - "\n\n"
+    - "\n"
+    - "。"
+    - "！"
+    - "？"
+    - " "
+    - ""
+
+# ====================================
+# 检索配置
+# ====================================
+retrieval:
+  top_k: 5
+  similarity_threshold: 0.7
+  use_mmr: false
+  mmr_lambda: 0.5
+
+# ====================================
+# 生成配置
+# ====================================
+generation:
+  provider: openai
+  model: gpt-3.5-turbo
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 30
+
+# ====================================
+# API配置
+# ====================================
+api:
+  prefix: /api/v1
+  title: x-rag API
+  description: RAG学习和实训项目API
+  version: 1.0.0
+
+# ====================================
+# 限流配置
+# ====================================
+rate_limit:
+  enabled: true
+  requests_per_minute: 60
+  requests_per_hour: 1000
+
+# ====================================
+# CORS配置
+# ====================================
+cors:
+  enabled: true
+  allow_origins:
+    - "*"
+  allow_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  allow_headers:
+    - "*"
