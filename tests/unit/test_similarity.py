@@ -6,11 +6,11 @@
 
 import pytest
 import numpy as np
-from utils.similarity import (
+from src.utils.similarity import (
     SimilarityCalculator,
     DistanceType,
     MetadataFilter,
-    MMRReranker
+    MMRReranker,
 )
 
 
@@ -61,7 +61,7 @@ class TestSimilarityCalculator:
         similarity = SimilarityCalculator.compute_similarity(
             vec1,
             vec2,
-            DistanceType.COSINE
+            DistanceType.COSINE,
         )
 
         assert similarity == pytest.approx(1.0, abs=0.01)
@@ -72,13 +72,13 @@ class TestSimilarityCalculator:
         doc_vecs = [
             [1, 2, 3],
             [2, 4, 6],
-            [3, 2, 1]
+            [3, 2, 1],
         ]
 
         similarities = SimilarityCalculator.compute_similarities(
             query_vec,
             doc_vecs,
-            DistanceType.COSINE
+            DistanceType.COSINE,
         )
 
         assert len(similarities) == 3
@@ -94,12 +94,12 @@ class TestMetadataFilter:
         documents = [
             {"text": "doc1", "metadata": {"category": "tech", "year": 2020}},
             {"text": "doc2", "metadata": {"category": "news", "year": 2021}},
-            {"text": "doc3", "metadata": {"category": "tech", "year": 2022}}
+            {"text": "doc3", "metadata": {"category": "tech", "year": 2022}},
         ]
 
         filtered = MetadataFilter.filter_by_metadata(
             documents,
-            {"category": "tech"}
+            {"category": "tech"},
         )
 
         assert len(filtered) == 2
@@ -110,12 +110,12 @@ class TestMetadataFilter:
         documents = [
             {"text": "doc1", "metadata": {"year": 2020}},
             {"text": "doc2", "metadata": {"year": 2021}},
-            {"text": "doc3", "metadata": {"year": 2022}}
+            {"text": "doc3", "metadata": {"year": 2022}},
         ]
 
         filtered = MetadataFilter.filter_by_metadata(
             documents,
-            {"year": {"$gt": 2020}}
+            {"year": {"$gt": 2020}},
         )
 
         assert len(filtered) == 2
@@ -126,12 +126,12 @@ class TestMetadataFilter:
         documents = [
             {"text": "doc1", "metadata": {"status": "active"}},
             {"text": "doc2", "metadata": {"status": "pending"}},
-            {"text": "doc3", "metadata": {"status": "completed"}}
+            {"text": "doc3", "metadata": {"status": "completed"}},
         ]
 
         filtered = MetadataFilter.filter_by_metadata(
             documents,
-            {"status": {"$in": ["active", "pending"]}}
+            {"status": {"$in": ["active", "pending"]}},
         )
 
         assert len(filtered) == 2
@@ -139,12 +139,12 @@ class TestMetadataFilter:
     def test_filter_empty_result(self):
         """测试空结果"""
         documents = [
-            {"text": "doc1", "metadata": {"category": "tech"}}
+            {"text": "doc1", "metadata": {"category": "tech"}},
         ]
 
         filtered = MetadataFilter.filter_by_metadata(
             documents,
-            {"category": "news"}
+            {"category": "news"},
         )
 
         assert len(filtered) == 0
@@ -162,27 +162,27 @@ class TestMMRReranker:
                 "id": "1",
                 "vector": [1, 0, 0],
                 "text": "doc1",
-                "metadata": {}
+                "metadata": {},
             },
             {
                 "id": "2",
                 "vector": [0.9, 0.1, 0],
                 "text": "doc2",
-                "metadata": {}
+                "metadata": {},
             },
             {
                 "id": "3",
                 "vector": [0.95, 0.05, 0],
                 "text": "doc3",
-                "metadata": {}
-            }
+                "metadata": {},
+            },
         ]
 
         reranked = MMRReranker.rerank(
             query_vec,
             documents,
             lambda_param=0.7,
-            distance_type=DistanceType.COSINE
+            distance_type=DistanceType.COSINE,
         )
 
         assert len(reranked) == len(documents)
@@ -196,15 +196,15 @@ class TestMMRReranker:
                 "id": "1",
                 "vector": [1, 0, 0],
                 "text": "doc1",
-                "metadata": {}
-            }
+                "metadata": {},
+            },
         ]
 
         reranked = MMRReranker.rerank(
             query_vec,
             documents,
             lambda_param=0.5,
-            distance_type=DistanceType.COSINE
+            distance_type=DistanceType.COSINE,
         )
 
         assert len(reranked) == 1
@@ -218,7 +218,7 @@ class TestMMRReranker:
             query_vec,
             [],
             lambda_param=0.5,
-            distance_type=DistanceType.COSINE
+            distance_type=DistanceType.COSINE,
         )
 
         assert len(reranked) == 0

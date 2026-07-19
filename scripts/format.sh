@@ -1,37 +1,21 @@
-#!/bin/bash
-
-# x-rag 代码格式化脚本
+#!/usr/bin/env bash
+# Format code
 
 set -e
 
-echo "======================================"
-echo "x-rag 代码格式化"
-echo "======================================"
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# 检查是否安装了black和ruff
-if ! command -v black &> /dev/null; then
-    echo "安装black..."
-    pip install black
-fi
+cd "$PROJECT_DIR"
 
-if ! command -v ruff &> /dev/null; then
-    echo "安装ruff..."
-    pip install ruff
-fi
+echo "Running ruff check and auto-fix..."
+uv run ruff check src/ --fix
 
-echo "格式化代码..."
-black src/ tests/ examples/
+echo "Running ruff format..."
+uv run ruff format src/
 
-echo "检查代码..."
-ruff check src/ tests/ examples/ --fix
+echo "Running black..."
+uv run black src/
 
-echo "类型检查..."
-if command -v mypy &> /dev/null; then
-    mypy src/
-else
-    echo "跳过类型检查 (mypy未安装)"
-fi
-
-echo "======================================"
-echo "格式化完成"
-echo "======================================"
+echo "Done!"

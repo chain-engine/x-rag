@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Router Module
+
 路由注册
-注册所有API路由
 """
 
 from fastapi import APIRouter

@@ -1,210 +1,150 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Document API Module
+
 文档管理接口
-实现文档上传、删除、查询等功能
 """
 
-import uuid
-from typing import Optional, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Depends
+from typing import Any
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
 
-from common.schemas import DocumentInfo, DocumentQueryResponse
-from common.constants import (
-    HTTP_OK,
-    HTTP_CREATED,
-    HTTP_NOT_FOUND,
-    MSG_SUCCESS,
-    DEFAULT_PAGE_SIZE
+from schemas.document import (
+    DocumentUploadResponse,
+    DocumentDeleteResponse,
+    DocumentQueryResponse,
+    DocumentStatusResponse,
+    DocumentInfo,
 )
-from core.exceptions import DocumentError
 from core.logger import logger
+from core.exceptions import DocumentError, ValidationError
 from service.indexing_service import IndexingService
-
+from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()
 
-
-# 服务依赖
-_services: dict = {}
+# 全局服务实例（通过lifespan注入）
+_indexing_service: IndexingService | None = None
 
 
 def set_services(indexing_service: IndexingService) -> None:
     """设置服务实例"""
-    _services["indexing"] = indexing_service
+    global _indexing_service
+    _indexing_service = indexing_service
 
 
 def get_indexing_service() -> IndexingService:
     """获取索引服务"""
-    if "indexing" not in _services:
+    if _indexing_service is None:
         raise RuntimeError("IndexingService not initialized")
-    return _services["indexing"]
+    return _indexing_service
 
 
 @router.post(
     "/documents/upload",
-    response_model=dict[str, Any],
-    summary="上传文档",
-    description="上传并索引文档",
-    tags=["文档"]
+    summary="文档上传",
+    description="上传文档并自动进行索引",
+    tags=["文档"],
 )
 async def upload_document(
-    file: UploadFile = File(...),
-    metadata: Optional[str] = Query(None, description="元数据（JSON格式）"),
-    indexing_service: IndexingService = Depends(get_indexing_service)
+    file: UploadFile = File(..., description="上传的文件"),
+    metadata: str = Form("{}", description="文档元数据（JSON字符串）"),
+    indexing_service: IndexingService = Depends(get_indexing_service),
 ) -> dict[str, Any]:
-    """上传文档接口"""
+    """文档上传接口"""
     try:
+        import json
+
+        # 解析元数据
+        try:
+            meta = json.loads(metadata) if metadata else {}
+        except json.JSONDecodeError:
+            raise ValidationError("Invalid metadata JSON format")
+
         # 读取文件内容
         content = await file.read()
 
-        # 尝试解码文本
         try:
             text = content.decode("utf-8")
         except UnicodeDecodeError:
             try:
                 text = content.decode("gbk")
-            except Exception as e:
-                raise DocumentError(f"Failed to decode file: {e}")
+            except Exception:
+                raise DocumentError("Unsupported file encoding")
 
-        # 解析元数据
-        doc_metadata = {}
-        if metadata:
-            import json
-            try:
-                doc_metadata = json.loads(metadata)
-            except json.JSONDecodeError as e:
-                raise DocumentError(f"Invalid metadata JSON: {e}")
-
-        # 添加文件信息到元数据
-        doc_metadata["original_filename"] = file.filename
+        # 获取文件信息
+        file_name = file.filename or "unknown"
+        file_type = file_name.split(".")[-1].lower() if "." in file_name else "txt"
 
         # 索引文档
         result = indexing_service.index_document(
             text=text,
-            file_name=file.filename,
-            file_type=file.filename.split(".")[-1] if "." in file.filename else "txt",
+            file_name=file_name,
+            file_type=file_type,
             file_size=len(content),
-            metadata=doc_metadata
+            metadata=meta,
         )
 
-        logger.info(f"Document uploaded: {result['document_id']}")
-
         return {
-            "code": HTTP_CREATED,
+            "code": HTTP_OK,
             "message": MSG_SUCCESS,
             "data": {
                 "document_id": result["document_id"],
-                "file_name": file.filename,
+                "file_name": file_name,
                 "status": result["status"],
-                "message": f"Document indexed successfully with {result['chunk_count']} chunks"
-            }
+                "chunk_count": result["chunk_count"],
+                "message": "Document uploaded and indexed successfully",
+            },
         }
 
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except DocumentError as e:
-        logger.error(f"Document error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete(
-    "/documents/{document_id}",
-    response_model=dict[str, Any],
-    summary="删除文档",
-    description="删除文档及其向量索引",
-    tags=["文档"]
-)
-async def delete_document(
-    document_id: str,
-    indexing_service: IndexingService = Depends(get_indexing_service)
-) -> dict[str, Any]:
-    """删除文档接口"""
-    try:
-        result = indexing_service.delete_document(document_id)
-
-        logger.info(f"Document deleted: {document_id}")
-
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": {
-                "document_id": document_id,
-                "status": result["status"],
-                "message": f"Document deleted with {result['vector_count']} vectors"
-            }
-        }
-
-    except DocumentError as e:
-        logger.error(f"Document error: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error(f"Delete error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get(
-    "/documents/{document_id}",
-    response_model=dict[str, Any],
-    summary="获取文档信息",
-    description="获取文档的详细信息",
-    tags=["文档"]
-)
-async def get_document(
-    document_id: str,
-    indexing_service: IndexingService = Depends(get_indexing_service)
-) -> dict[str, Any]:
-    """获取文档完整信息接口
-
-    返回文档详细信息，包括文件元数据、状态、以及关联的 chunks 预览
-    """
-    try:
-        document = indexing_service.get_document(document_id)
-
-        if document.get("status") == "not_found":
-            return {
-                "code": HTTP_NOT_FOUND,
-                "message": "not found",
-                "data": None
-            }
-
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": document
-        }
-
-    except Exception as e:
-        logger.error(f"Get document error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
 @router.get(
     "/documents",
-    response_model=dict[str, Any],
-    summary="查询文档列表",
-    description="分页查询文档列表",
-    tags=["文档"]
+    summary="文档列表",
+    description="获取文档列表",
+    tags=["文档"],
 )
 async def list_documents(
-    page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=100, description="每页记录数"),
-    status: Optional[str] = Query(None, description="文档状态"),
-    file_type: Optional[str] = Query(None, description="文件类型"),
-    indexing_service: IndexingService = Depends(get_indexing_service)
+    page: int = 1,
+    page_size: int = 20,
+    status: str | None = None,
+    file_type: str | None = None,
+    indexing_service: IndexingService = Depends(get_indexing_service),
 ) -> dict[str, Any]:
-    """查询文档列表接口"""
+    """文档列表接口"""
     try:
-        # 获取所有文档
-        all_documents = indexing_service.list_documents(status=status, file_type=file_type)
+        documents = indexing_service.list_documents(status=status, file_type=file_type)
 
         # 分页
-        total = len(all_documents)
+        total = len(documents)
         total_pages = (total + page_size - 1) // page_size
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        page_documents = all_documents[start_idx:end_idx]
+
+        paginated_docs = documents[start_idx:end_idx]
+
+        # 转换格式
+        doc_infos = []
+        for doc in paginated_docs:
+            doc_infos.append({
+                "document_id": doc.get("document_id"),
+                "file_name": doc.get("file_name"),
+                "file_type": doc.get("file_type"),
+                "file_size": doc.get("file_size", 0),
+                "status": doc.get("status"),
+                "chunk_count": doc.get("chunk_count", 0),
+                "created_at": doc.get("created_at"),
+                "updated_at": doc.get("updated_at"),
+                "metadata": doc.get("metadata", {}),
+            })
 
         return {
             "code": HTTP_OK,
@@ -214,8 +154,8 @@ async def list_documents(
                 "page": page,
                 "page_size": page_size,
                 "total_pages": total_pages,
-                "items": page_documents
-            }
+                "items": doc_infos,
+            },
         }
 
     except Exception as e:
@@ -224,36 +164,92 @@ async def list_documents(
 
 
 @router.get(
-    "/documents/{document_id}/status",
-    response_model=dict[str, Any],
-    summary="获取文档状态",
-    description="获取文档的处理状态",
-    tags=["文档"]
+    "/documents/{document_id}",
+    summary="获取文档详情",
+    description="获取指定文档的详细信息",
+    tags=["文档"],
 )
-async def get_document_status(
+async def get_document(
     document_id: str,
-    indexing_service: IndexingService = Depends(get_indexing_service)
+    indexing_service: IndexingService = Depends(get_indexing_service),
 ) -> dict[str, Any]:
-    """获取文档状态接口（轻量）
-
-    返回文档的简要状态信息，适合频繁轮询检查处理进度
-    """
+    """获取文档详情接口"""
     try:
-        status = indexing_service.get_document_status(document_id)
+        document = indexing_service.get_document(document_id)
 
-        if status.get("status") == "not_found":
-            return {
-                "code": HTTP_NOT_FOUND,
-                "message": "not found",
-                "data": None
-            }
+        if document.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail="Document not found")
 
         return {
             "code": HTTP_OK,
             "message": MSG_SUCCESS,
-            "data": status
+            "data": document,
         }
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get document error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete(
+    "/documents/{document_id}",
+    summary="删除文档",
+    description="删除指定文档及其关联的向量",
+    tags=["文档"],
+)
+async def delete_document(
+    document_id: str,
+    indexing_service: IndexingService = Depends(get_indexing_service),
+) -> dict[str, Any]:
+    """删除文档接口"""
+    try:
+        result = indexing_service.delete_document(document_id)
+
+        return {
+            "code": HTTP_OK,
+            "message": MSG_SUCCESS,
+            "data": {
+                "document_id": result["document_id"],
+                "status": result["status"],
+                "vector_count": result["vector_count"],
+                "message": "Document deleted successfully",
+            },
+        }
+
+    except DocumentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Delete document error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get(
+    "/documents/{document_id}/status",
+    summary="获取文档状态",
+    description="获取指定文档的处理状态",
+    tags=["文档"],
+)
+async def get_document_status(
+    document_id: str,
+    indexing_service: IndexingService = Depends(get_indexing_service),
+) -> dict[str, Any]:
+    """获取文档状态接口"""
+    try:
+        status = indexing_service.get_document_status(document_id)
+
+        if status.get("status") == "not_found":
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        return {
+            "code": HTTP_OK,
+            "message": MSG_SUCCESS,
+            "data": status,
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Get document status error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

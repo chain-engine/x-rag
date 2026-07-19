@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-数据访问层
+Repository Package
+
+数据访问层，封装业务CRUD操作
 """
 
 from repository.base_repository import BaseRepository

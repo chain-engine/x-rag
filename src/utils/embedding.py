@@ -14,7 +14,7 @@ from sentence_transformers import SentenceTransformer
 from core.logger import logger
 from core.exceptions import EmbeddingError
 from core.config import settings
-from common.constants import (
+from constants.embedding import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_EMBEDDING_DEVICE,
     DEFAULT_EMBEDDING_BATCH_SIZE,

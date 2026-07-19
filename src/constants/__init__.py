@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Constants Package
+
+统一管理项目中的常量，避免魔法数值和硬编码字符串
+"""
+
+from constants.common import (
+    # HTTP Status Codes
+    HTTP_OK,
+    HTTP_CREATED,
+    HTTP_BAD_REQUEST,
+    HTTP_UNAUTHORIZED,
+    HTTP_FORBIDDEN,
+    HTTP_NOT_FOUND,
+    HTTP_CONFLICT,
+    HTTP_TOO_MANY_REQUESTS,
+    HTTP_INTERNAL_ERROR,
+    # Response Messages
+    MSG_SUCCESS,
+    MSG_CREATED,
+    MSG_DELETED,
+    MSG_UPDATED,
+    MSG_NOT_FOUND,
+    MSG_BAD_REQUEST,
+    MSG_UNAUTHORIZED,
+    MSG_FORBIDDEN,
+    MSG_CONFLICT,
+    MSG_INTERNAL_ERROR,
+    # Date/Time Formats
+    DATE_FORMAT,
+    DATETIME_FORMAT,
+    ISO_DATETIME_FORMAT,
+    # Pagination
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+    # Timeouts
+    SHORT_TIMEOUT,
+    MEDIUM_TIMEOUT,
+    LONG_TIMEOUT,
+    # Regex
+    EMAIL_REGEX,
+    PHONE_REGEX,
+    # Headers
+    HEADER_REQUEST_ID,
+    HEADER_AUTHORIZATION,
+    HEADER_CONTENT_TYPE,
+)
+
+from constants.env import (
+    ENV_DEVELOPMENT,
+    ENV_TEST,
+    ENV_PRODUCTION,
+)
+
+from constants.rag import (
+    # Document Status
+    DOC_STATUS_PENDING,
+    DOC_STATUS_PROCESSING,
+    DOC_STATUS_COMPLETED,
+    DOC_STATUS_FAILED,
+    DOC_STATUS_DELETED,
+    # Document Types
+    DOC_TYPE_TXT,
+    DOC_TYPE_MD,
+    DOC_TYPE_PDF,
+    DOC_TYPE_DOCX,
+    DOC_TYPE_HTML,
+    SUPPORTED_DOC_TYPES,
+    # Distance Types
+    DISTANCE_COSINE,
+    DISTANCE_EUCLIDEAN,
+    DISTANCE_DOT,
+    # Default Values
+    DEFAULT_TOP_K,
+    DEFAULT_SIMILARITY_THRESHOLD,
+    DEFAULT_MMR_LAMBDA,
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_CHUNK_OVERLAP,
+)
+
+from constants.embedding import (
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_EMBEDDING_DEVICE,
+    DEFAULT_EMBEDDING_BATCH_SIZE,
+    DEFAULT_EMBEDDING_CACHE_SIZE,
+)
+
+from constants.vector_store import (
+    VECTOR_STORE_CHROMA,
+    DEFAULT_COLLECTION_NAME,
+    DEFAULT_DISTANCE,
+)
+
+from constants.generation import (
+    DEFAULT_TEMPERATURE,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TIMEOUT,
+    LLM_PROVIDER_OPENAI,
+    LLM_PROVIDER_ANTHROPIC,
+    LLM_PROVIDER_DEEPSEEK,
+    LLM_PROVIDER_ALIYUN,
+    SUPPORTED_LLM_PROVIDERS,
+)
+
+from constants.rate_limit import (
+    DEFAULT_REQUESTS_PER_MINUTE,
+    DEFAULT_REQUESTS_PER_HOUR,
+)
+
+from constants.log import (
+    LOG_DEBUG,
+    LOG_INFO,
+    LOG_WARNING,
+    LOG_ERROR,
+    LOG_CRITICAL,
+)
+
+from constants.server import (
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    API_V1_PREFIX,
+    API_PREFIX,
+    API_TITLE,
+    API_VERSION,
+)
+
+__all__ = [
+    # HTTP Status Codes
+    "HTTP_OK",
+    "HTTP_CREATED",
+    "HTTP_BAD_REQUEST",
+    "HTTP_UNAUTHORIZED",
+    "HTTP_FORBIDDEN",
+    "HTTP_NOT_FOUND",
+    "HTTP_CONFLICT",
+    "HTTP_TOO_MANY_REQUESTS",
+    "HTTP_INTERNAL_ERROR",
+    # Response Messages
+    "MSG_SUCCESS",
+    "MSG_CREATED",
+    "MSG_DELETED",
+    "MSG_UPDATED",
+    "MSG_NOT_FOUND",
+    "MSG_BAD_REQUEST",
+    "MSG_UNAUTHORIZED",
+    "MSG_FORBIDDEN",
+    "MSG_CONFLICT",
+    "MSG_INTERNAL_ERROR",
+    # Date/Time Formats
+    "DATE_FORMAT",
+    "DATETIME_FORMAT",
+    "ISO_DATETIME_FORMAT",
+    # Pagination
+    "DEFAULT_PAGE_SIZE",
+    "MAX_PAGE_SIZE",
+    # Timeouts
+    "SHORT_TIMEOUT",
+    "MEDIUM_TIMEOUT",
+    "LONG_TIMEOUT",
+    # Regex
+    "EMAIL_REGEX",
+    "PHONE_REGEX",
+    # Headers
+    "HEADER_REQUEST_ID",
+    "HEADER_AUTHORIZATION",
+    "HEADER_CONTENT_TYPE",
+    # Environment
+    "ENV_DEVELOPMENT",
+    "ENV_TEST",
+    "ENV_PRODUCTION",
+    # Document Status
+    "DOC_STATUS_PENDING",
+    "DOC_STATUS_PROCESSING",
+    "DOC_STATUS_COMPLETED",
+    "DOC_STATUS_FAILED",
+    "DOC_STATUS_DELETED",
+    # Document Types
+    "DOC_TYPE_TXT",
+    "DOC_TYPE_MD",
+    "DOC_TYPE_PDF",
+    "DOC_TYPE_DOCX",
+    "DOC_TYPE_HTML",
+    "SUPPORTED_DOC_TYPES",
+    # Distance Types
+    "DISTANCE_COSINE",
+    "DISTANCE_EUCLIDEAN",
+    "DISTANCE_DOT",
+    # RAG Defaults
+    "DEFAULT_TOP_K",
+    "DEFAULT_SIMILARITY_THRESHOLD",
+    "DEFAULT_MMR_LAMBDA",
+    "DEFAULT_CHUNK_SIZE",
+    "DEFAULT_CHUNK_OVERLAP",
+    # LLM Providers
+    "LLM_PROVIDER_OPENAI",
+    "LLM_PROVIDER_ANTHROPIC",
+    "LLM_PROVIDER_DEEPSEEK",
+    "LLM_PROVIDER_ALIYUN",
+    "SUPPORTED_LLM_PROVIDERS",
+    # Embedding
+    "DEFAULT_EMBEDDING_MODEL",
+    "DEFAULT_EMBEDDING_DEVICE",
+    "DEFAULT_EMBEDDING_BATCH_SIZE",
+    "DEFAULT_EMBEDDING_CACHE_SIZE",
+    # Vector Store
+    "VECTOR_STORE_CHROMA",
+    "DEFAULT_COLLECTION_NAME",
+    "DEFAULT_DISTANCE",
+    # Generation
+    "DEFAULT_TEMPERATURE",
+    "DEFAULT_MAX_TOKENS",
+    "DEFAULT_TIMEOUT",
+    # Rate Limit
+    "DEFAULT_REQUESTS_PER_MINUTE",
+    "DEFAULT_REQUESTS_PER_HOUR",
+    # Log Levels
+    "LOG_DEBUG",
+    "LOG_INFO",
+    "LOG_WARNING",
+    "LOG_ERROR",
+    "LOG_CRITICAL",
+    # Server
+    "DEFAULT_HOST",
+    "DEFAULT_PORT",
+    "API_V1_PREFIX",
+    "API_PREFIX",
+    "API_TITLE",
+    "API_VERSION",
+]

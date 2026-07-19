@@ -11,7 +11,7 @@ import numpy as np
 
 from core.logger import logger
 from core.exceptions import RetrievalError
-from common.constants import (
+from constants.rag import (
     DISTANCE_COSINE,
     DISTANCE_EUCLIDEAN,
     DISTANCE_DOT,

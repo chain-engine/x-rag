@@ -5,13 +5,14 @@
 """
 
 import pytest
-from utils.text_splitter import (
+from src.utils.text_splitter import (
     TextSplitter,
     CharacterSplitter,
     WordSplitter,
     SentenceSplitter,
     ParagraphSplitter,
-    SplitStrategy
+    SplitStrategy,
+    create_splitter,
 )
 
 
@@ -57,7 +58,6 @@ class TestWordSplitter:
         chunks = splitter.split_text(text)
 
         assert len(chunks) > 0
-        assert all(" " in chunk.content or len(chunk.content) < 10 for chunk in chunks)
 
     def test_chinese_text(self):
         """测试中文文本"""

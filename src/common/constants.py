@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-全局常量定义
-统一管理项目中的常量，避免魔法数值和硬编码字符串
+常量重导出模块
+
+此文件保留用于向后兼容，新代码应使用 constants 模块
 """
 
 from typing import Final
 
-# ====================================
-# 服务常量
-# ====================================
-DEFAULT_HOST: Final[str] = "0.0.0.0"  # 默认监听地址，0.0.0.0 表示接受所有网络接口连接
-DEFAULT_PORT: Final[int] = 8000  # 默认服务端口号
-API_V1_PREFIX: Final[str] = "/api/v1"  # API v1 版本前缀路径
+from constants.common import *  # noqa: F401, F403
+from constants.env import *  # noqa: F401, F403
+from constants.rag import *  # noqa: F401, F403
+from constants.embedding import *  # noqa: F401, F403
+from constants.vector_store import *  # noqa: F401, F403
+from constants.generation import *  # noqa: F401, F403
+from constants.rate_limit import *  # noqa: F401, F403
+from constants.log import *  # noqa: F401, F403
+from constants.server import *  # noqa: F401, F403
 
 # ====================================
 # 环境常量

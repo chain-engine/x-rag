@@ -1,67 +1,65 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RAG接口
-实现RAG查询接口，支持检索增强生成
+RAG API Module
+
+RAG查询接口
 """
 
-from typing import Optional, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
+from typing import Any
+from fastapi import APIRouter, HTTPException, Depends
 
-from common.schemas import (
+from schemas.rag import (
     RAGQueryRequest,
-    RetrievedDocument,
+    RetrievalRequest,
     EmbeddingRequest,
-    RetrievalRequest
+    RetrievedDocument,
 )
-from common.constants import HTTP_OK, MSG_SUCCESS, HTTP_NOT_FOUND
-from core.exceptions import RetrievalError, GenerationError, ConfigurationError
 from core.logger import logger
+from core.exceptions import RetrievalError, GenerationError, ConfigurationError
 from service.retrieval_service import RetrievalService
 from service.generation_service import GenerationService
-
+from infras.embedding.bge_model import CachedBGEEmbeddingModel
+from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()
 
+# 全局服务实例（通过lifespan注入）
+_retrieval_service: RetrievalService | None = None
+_generation_service: GenerationService | None = None
 
-# 服务依赖
-_services: dict = {}
 
-
-def set_services(
-    retrieval_service: RetrievalService,
-    generation_service: GenerationService
-) -> None:
+def set_services(retrieval_service: RetrievalService, generation_service: GenerationService) -> None:
     """设置服务实例"""
-    _services["retrieval"] = retrieval_service
-    _services["generation"] = generation_service
+    global _retrieval_service, _generation_service
+    _retrieval_service = retrieval_service
+    _generation_service = generation_service
 
 
 def get_retrieval_service() -> RetrievalService:
     """获取检索服务"""
-    if "retrieval" not in _services:
+    if _retrieval_service is None:
         raise RuntimeError("RetrievalService not initialized")
-    return _services["retrieval"]
+    return _retrieval_service
 
 
 def get_generation_service() -> GenerationService:
     """获取生成服务"""
-    if "generation" not in _services:
+    if _generation_service is None:
         raise RuntimeError("GenerationService not initialized")
-    return _services["generation"]
+    return _generation_service
 
 
 @router.post(
     "/rag/query",
-    response_model=dict[str, Any],
     summary="RAG查询",
     description="使用RAG进行问答，检索相关文档并生成答案",
-    tags=["RAG"]
+    tags=["RAG"],
 )
 async def rag_query(
     request: RAGQueryRequest,
     retrieval_service: RetrievalService = Depends(get_retrieval_service),
-    generation_service: GenerationService = Depends(get_generation_service)
+    generation_service: GenerationService = Depends(get_generation_service),
 ) -> dict[str, Any]:
     """RAG查询接口"""
     try:
@@ -72,7 +70,7 @@ async def rag_query(
             similarity_threshold=request.similarity_threshold,
             use_mmr=request.use_mmr,
             mmr_lambda=request.mmr_lambda,
-            metadata_filter=request.metadata_filter
+            metadata_filter=request.metadata_filter,
         )
 
         if not retrieved_docs:
@@ -86,21 +84,21 @@ async def rag_query(
                     "retrieved_docs": [],
                     "provider": "none",
                     "model": "none",
-                    "tokens_used": None
-                }
+                    "tokens_used": None,
+                },
             }
 
         # 提取上下文
         context = [doc["text"] for doc in retrieved_docs]
 
         # 生成答案
-        provider = request.provider or generation_service.default_provider.value
+        provider = request.provider or generation_service._default_provider
         generation_result = await generation_service.generate(
             prompt=request.query,
             context=context,
             provider=provider,
             temperature=request.temperature,
-            max_tokens=request.max_tokens
+            max_tokens=request.max_tokens,
         )
 
         # 构建响应
@@ -110,7 +108,7 @@ async def rag_query(
                 document_id=doc["metadata"].get("document_id", ""),
                 text=doc["text"],
                 score=doc["score"],
-                metadata=doc["metadata"]
+                metadata=doc["metadata"],
             )
             for doc in retrieved_docs
         ]
@@ -124,8 +122,8 @@ async def rag_query(
                 "retrieved_docs": [doc.model_dump() for doc in retrieved_docs_response],
                 "provider": generation_result["provider"],
                 "model": generation_result["model"],
-                "tokens_used": generation_result["tokens_used"]
-            }
+                "tokens_used": generation_result["tokens_used"],
+            },
         }
 
     except RetrievalError as e:
@@ -134,9 +132,6 @@ async def rag_query(
     except GenerationError as e:
         logger.error(f"Generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    except ConfigurationError as e:
-        logger.error(f"Configuration error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         logger.error(f"RAG query error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -144,26 +139,23 @@ async def rag_query(
 
 @router.post(
     "/rag/retrieve",
-    response_model=dict[str, Any],
     summary="文档检索",
     description="检索相关文档，不进行生成",
-    tags=["RAG"]
+    tags=["RAG"],
 )
 async def retrieve_docs(
     request: RetrievalRequest,
-    retrieval_service: RetrievalService = Depends(get_retrieval_service)
+    retrieval_service: RetrievalService = Depends(get_retrieval_service),
 ) -> dict[str, Any]:
     """文档检索接口"""
     try:
-
-        # 检索相关文档
         documents = retrieval_service.retrieve(
             query=request.query,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
             use_mmr=request.use_mmr,
             mmr_lambda=request.mmr_lambda,
-            metadata_filter=request.metadata_filter
+            metadata_filter=request.metadata_filter,
         )
 
         retrieved_docs = [
@@ -172,7 +164,7 @@ async def retrieve_docs(
                 document_id=doc["metadata"].get("document_id", ""),
                 text=doc["text"],
                 score=doc["score"],
-                metadata=doc["metadata"]
+                metadata=doc["metadata"],
             )
             for doc in documents
         ]
@@ -183,8 +175,8 @@ async def retrieve_docs(
             "data": {
                 "query": request.query,
                 "documents": [doc.model_dump() for doc in retrieved_docs],
-                "total": len(retrieved_docs)
-            }
+                "total": len(retrieved_docs),
+            },
         }
 
     except RetrievalError as e:
@@ -197,34 +189,24 @@ async def retrieve_docs(
 
 @router.post(
     "/rag/embed",
-    response_model=dict[str, Any],
     summary="文本向量化",
     description="将文本转换为向量表示",
-    tags=["RAG"]
+    tags=["RAG"],
 )
 async def embed_text(request: EmbeddingRequest) -> dict[str, Any]:
     """文本向量化接口"""
     try:
-        from utils.embedding import encode_texts, get_embedding_model
-
-        # 获取嵌入模型实例（单例模式）
-        model = get_embedding_model(cached=True)
-
-        # 编码文本列表为向量
-        embeddings = encode_texts(
-            texts=request.texts,
-            normalize=request.normalize,
-            cached=True
-        )
+        embedding_model = CachedBGEEmbeddingModel()
+        embeddings = embedding_model.encode(request.texts, normalize=request.normalize)
 
         return {
             "code": HTTP_OK,
             "message": MSG_SUCCESS,
             "data": {
                 "embeddings": embeddings,
-                "dimension": model.dimension,
-                "model": model.model_name
-            }
+                "dimension": embedding_model.dimension,
+                "model": embedding_model.model_name,
+            },
         }
 
     except Exception as e:
@@ -236,10 +218,10 @@ async def embed_text(request: EmbeddingRequest) -> dict[str, Any]:
     "/rag/stats",
     summary="RAG统计",
     description="获取RAG系统统计信息",
-    tags=["RAG"]
+    tags=["RAG"],
 )
 async def get_rag_stats(
-    retrieval_service: RetrievalService = Depends(get_retrieval_service)
+    retrieval_service: RetrievalService = Depends(get_retrieval_service),
 ) -> dict[str, Any]:
     """获取RAG统计信息"""
     try:
@@ -250,8 +232,8 @@ async def get_rag_stats(
             "message": MSG_SUCCESS,
             "data": {
                 "vector_count": vector_count,
-                "status": "running"
-            }
+                "status": "running",
+            },
         }
 
     except Exception as e:

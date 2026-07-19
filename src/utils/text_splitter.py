@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from core.logger import logger
-from common.constants import (
+from constants.rag import (
     DEFAULT_CHUNK_SIZE,
     DEFAULT_CHUNK_OVERLAP,
 )

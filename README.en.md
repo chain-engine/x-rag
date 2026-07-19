@@ -1,478 +1,272 @@
-# x-rag
+# x-rag: Production-Ready RAG Learning Project
 
-A complete RAG (Retrieval-Augmented Generation) learning and training project, following industry best practices.
-
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-## Description
+> **中文**: [README.md](./README.md)
 
-x-rag is a production-grade RAG learning and training project that provides a standardized, modular, highly scalable, and maintainable backend service foundation. It implements the complete RAG workflow, including offline index construction, online query retrieval, and augmented generation.
+## Project Overview
 
-### Key Features
+x-rag is a **production-grade RAG (Retrieval-Augmented Generation) learning and training project**, following backend industry-standard engineering practices with a clear layered, modular, highly extensible, and maintainable architecture.
 
-- 🏗️ **Standard Three-Tier Architecture**: API, Service, and Repository layers with strict dependency management
-- 🔧 **Dependency Injection**: container with singleton/transient support
-- 📝 **Complete Documentation**: Bilingual (Chinese/English) documentation with detailed architecture and usage examples
-- 🧪 **Test Coverage**: Unit and integration tests to ensure code quality
-- 🚀 **Docker Support**: Ready-to-use Docker image and docker-compose configuration
-- 🔌 **Hot Reload**: Development mode with hot reload for improved efficiency
-- 📊 **Multiple Embedding Models**: Support for mainstream models like BGE-M3
-- 🗃️ **Multiple Vector Stores**: Chroma-based vector storage with persistence
-- 🤖 **Multiple LLM Providers**: Support for OpenAI, DeepSeek, Aliyun Qwen, and more
+### Core Values
+
+- **Layered Architecture**: Standard five-layer business architecture + universal core support layer, completely isolated from web framework
+- **Modular Design**: Core support layer can be reused across RESTful API, scheduled tasks, message consumers, offline scripts, and unit tests
+- **Ready to Use**: Supports multi-environment switching and containerized deployment, enabling rapid enterprise RESTful API backend setup
+- **Engineering Standards**: PEP8 compliance, complete type annotations, production-grade logging and exception handling
+
+## Core Features
+
+- **Vector Retrieval**: Chroma vector store integration with BGE-M3 multilingual embedding model
+- **Smart Retrieval**: MMR (Maximal Marginal Relevance) reranking for improved retrieval diversity
+- **Flexible Splitting**: Multiple text splitting strategies - character, word, sentence, paragraph, and semantic
+- **Multi-LLM Support**: DeepSeek, OpenAI, and other major LLM providers
+- **Dependency Injection**: Built-in universal IOC container with singleton/transient support
+- **Middleware Support**: CORS, rate limiting, request tracing, unified exception handling
 
 ## Project Structure
 
 ```
 x-rag/
-├── src/                        # Core business code
-│   ├── api/                    # API layer
-│   │   ├── router.py           # Router registration
-│   │   └── v1/                 # v1 API endpoints
-│   │       ├── health.py       # Health check
-│   │       ├── rag.py          # RAG endpoints
-│   │       └── document.py     # Document management
-│   ├── service/                # Service layer
-│   │   ├── indexing_service.py # Indexing service
-│   │   ├── retrieval_service.py# Retrieval service
-│   │   └── generation_service.py# Generation service
-│   ├── repository/             # Repository layer
-│   │   ├── vector_repository.py# Vector repository
-│   │   └── document_repository.py# Document repository
-│   ├── core/                   # Core support layer
-│   │   ├── config.py           # Configuration center
-│   │   ├── logger.py           # Logging module
-│   │   ├── exceptions.py       # Exception definitions
-│   │   ├── middleware.py       # Middleware
-│   │   └── container.py        # Dependency injection container
-│   ├── common/                 # Common components
-│   │   ├── constants.py        # Constants
-│   │   ├── schemas.py          # Data models
-│   │   └── responses.py        # Response formats
-│   └── utils/                  # Utility functions
-│       ├── text_splitter.py    # Text splitting
-│       ├── embedding.py        # Embedding (BGE-M3)
-│       └── similarity.py       # Similarity calculation
-├── examples/                   # Usage examples
-│   ├── basic_rag.py            # Basic RAG example
-│   └── document_processing.py  # Document processing example
-├── tests/                      # Test directory
-│   ├── unit/                   # Unit tests
-│   ├── integration/            # Integration tests
-│   └── conftest.py             # pytest configuration
-├── scripts/                    # Deployment scripts
-│   ├── start.ps1               # Start script (PowerShell)
-│   ├── start.sh                # Start script (Linux/Mac)
-│   ├── test.ps1                # Test script (PowerShell)
-│   ├── test.sh                 # Test script (Linux/Mac)
-│   ├── format.ps1              # Format script (PowerShell)
-│   └── format.sh               # Format script (Linux/Mac)
-├── config/                     # Configuration files
-├── pyproject.toml              # Project dependencies
-├── Dockerfile                  # Docker image
-├── docker-compose.yml          # Docker compose
-├── .env                        # Environment variables
-├── .env.example                # Environment variables example
-├── config.yaml                 # Configuration file
-└── README.md                   # Project documentation
+├── src/                          # Core source code
+│   ├── api/                      # API interface layer
+│   │   ├── router.py             # Route registration
+│   │   └── v1/                   # API v1
+│   │       ├── health.py          # Health check
+│   │       ├── rag.py            # RAG endpoints
+│   │       └── document.py        # Document management
+│   ├── service/                  # Business logic layer
+│   │   ├── indexing_service.py    # Indexing service
+│   │   ├── retrieval_service.py   # Retrieval service
+│   │   └── generation_service.py # Generation service
+│   ├── repository/               # Data access layer
+│   │   ├── vector_repository.py  # Vector repository
+│   │   └── document_repository.py # Document repository
+│   ├── models/                  # ORM entity layer
+│   │   ├── document.py           # Document entity
+│   │   └── vector.py            # Vector record
+│   ├── infras/                  # Infrastructure layer
+│   │   ├── vector_store/         # Vector store
+│   │   ├── document_store/       # Document store
+│   │   └── embedding/            # Embedding model
+│   ├── core/                    # Core support layer
+│   │   ├── config.py            # Configuration center
+│   │   ├── logger.py            # Logging module
+│   │   ├── exceptions.py         # Exception definitions
+│   │   ├── container.py         # DI container
+│   │   ├── middleware.py         # Middleware
+│   │   └── response.py          # Response wrapper
+│   ├── schemas/                  # Data models
+│   │   ├── rag.py               # RAG schemas
+│   │   ├── document.py           # Document schemas
+│   │   └── health.py            # Health schemas
+│   ├── constants/                # Constants
+│   │   ├── common.py            # Common constants
+│   │   ├── rag.py               # RAG constants
+│   │   ├── generation.py         # Generation constants
+│   │   └── ...
+│   ├── utils/                   # Utilities
+│   │   ├── text_splitter.py     # Text splitting
+│   │   └── similarity.py         # Similarity calculation
+│   └── main.py                   # Application entry
+├── tests/                       # Test cases
+│   ├── conftest.py              # Test configuration
+│   └── unit/                    # Unit tests
+├── examples/                    # Example code
+├── scripts/                     # Operations scripts
+│   ├── start.sh / start.ps1    # Start script
+│   ├── test.sh / test.ps1      # Test script
+│   └── format.sh / format.ps1  # Format script
+├── docs/                        # Documentation
+├── .github/workflows/            # GitHub Actions
+├── .pre-commit-config.yaml     # Pre-commit config
+├── config.yaml                  # Configuration file
+├── .env.example                 # Environment template
+├── docker-compose.yml           # Docker compose
+├── Dockerfile                   # Docker image
+├── pyproject.toml              # Project config
+├── CHANGELOG.md               # Changelog
+├── LICENSE                     # MIT License
+└── README.md                  # This file
+```
+
+## System Architecture
+
+### Layered Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    API Interface Layer                  │
+│  (api/v1/health.py, rag.py, document.py)              │
+├─────────────────────────────────────────────────────────┤
+│                   Business Logic Layer                  │
+│  (service/indexing_service.py, retrieval_service.py, ...) │
+├─────────────────────────────────────────────────────────┤
+│                   Data Access Layer                    │
+│  (repository/vector_repository.py, document_repository.py) │
+├─────────────────────────────────────────────────────────┤
+│               Infrastructure Layer (infras/)            │
+│  ┌─────────────┬──────────────┬─────────────────┐      │
+│  │ VectorStore │ DocumentStore│ EmbeddingModel  │      │
+│  │   (Chroma)  │    (JSON)   │   (BGE-M3)     │      │
+│  └─────────────┴──────────────┴─────────────────┘      │
+├─────────────────────────────────────────────────────────┤
+│                    Core Support Layer                   │
+│  (core/config.py, logger.py, exceptions.py, container.py) │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## Quick Start
 
-### ① Requirements
+### Requirements
 
-#### Windows System
+- Python 3.11+
+- uv (recommended) or pip
 
-- **Python**: 3.11 or higher
-- **OS**: Windows 10/11
-- **Package Manager**: uv
-
-```powershell
-# Check Python version
-python --version
-# Should display Python 3.11.x or higher
-
-# Check if uv is installed
-uv --version
-# If not installed, it will show the installation command
-```
-
-#### Linux/Mac System
-
-- **Python**: 3.11 or higher
-- **OS**: Linux (Ubuntu 20.04+, Debian 11+, Arch Linux, etc.), macOS 12+
-- **Package Manager**: uv
+### Clone Project
 
 ```bash
-# Check Python version
-python --version
-# Should display Python 3.11.x or higher
-
-# Check if uv is installed
-uv --version
-# If not installed, it will show the installation command
-```
-
-### ② Clone Project
-
-```bash
-# Clone the project repository
 git clone https://github.com/yeyushilai/x-rag.git
-
-# Enter project directory
 cd x-rag
 ```
 
-### ③ Install Dependencies
-
-#### Install uv (if not already installed)
+### Install Dependencies
 
 ```bash
-# Linux/Mac
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows PowerShell
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-#### Sync dependencies
-
-```bash
-# Install project dependencies
+# Using uv (recommended)
 uv sync
 
-# Or install production dependencies only
-uv sync --group prod
+# Or using pip
+pip install -e .
 ```
 
-### ④ Configuration File Creation
-
-#### .env Configuration
-
-Copy `.env.example` to `.env` and modify key configurations:
+### Configure Environment
 
 ```bash
+# Copy environment template
 cp .env.example .env
+
+# Edit .env and add your API Key
+DEEPSEEK_API_KEY=your-deepseek-api-key-here
 ```
 
-Edit the `.env` file and configure the following key parameters:
+### Start Service
 
 ```bash
-# ====================================
-# LLM Configuration
-# ====================================
-GENERATION_PROVIDER=deepseek
-GENERATION_MODEL=deepseek-chat
-DEEPSEEK_API_KEY=your_api_key_here
+# Development mode (hot reload)
+uv run uvicorn src.main:app --reload
 
-# ====================================
-# Embedding Model Configuration
-# ====================================
-EMBEDDING_MODEL=BAAI/bge-m3
-EMBEDDING_DEVICE=cpu
-EMBEDDING_BATCH_SIZE=32
-EMBEDDING_CACHE_SIZE=1000
-
-# ====================================
-# Service Configuration
-# ====================================
-SERVER_HOST=0.0.0.0
-SERVER_PORT=8000
-DEBUG=true
-ENVIRONMENT=development
-
-# ====================================
-# Vector Store Configuration
-# ====================================
-VECTOR_STORE_PERSIST_DIR=./data/chroma
-VECTOR_STORE_COLLECTION_NAME=documents
-VECTOR_STORE_DISTANCE=cosine
-
-# ====================================
-# Text Splitter Configuration
-# ====================================
-TEXT_SPLITTER_CHUNK_SIZE=512
-TEXT_SPLITTER_CHUNK_OVERLAP=50
-
-# ====================================
-# Retrieval Configuration
-# ====================================
-RETRIEVAL_TOP_K=5
-RETRIEVAL_SIMILARITY_THRESHOLD=0.7
-RETRIEVAL_USE_MMR=false
-
-# ====================================
-# API Configuration
-# ====================================
-API_PREFIX=/api/v1
+# Or using scripts
+./scripts/start.sh   # Linux/macOS
+.\scripts\start.ps1  # Windows
 ```
 
-#### config.yaml Configuration
+After starting, access:
+- API Docs: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-`config.yaml` contains more detailed configuration items, adjust as needed:
-
-```yaml
-# Service configuration
-server:
-  host: 0.0.0.0
-  port: 8000
-  debug: false
-  environment: development
-
-# Logging configuration
-logging:
-  level: INFO
-  file_path: logs/app.log
-  rotation: 1 day
-  retention: 7 days
-
-# Embedding model configuration
-embedding:
-  model: BAAI/bge-m3
-  device: cpu
-  batch_size: 32
-  cache_size: 1000
-  normalize: true
-
-# Vector store configuration
-vector_store:
-  type: chroma
-  persist_directory: ./data/chroma
-  collection_name: documents
-  distance: cosine
-
-# Text splitter configuration
-text_splitter:
-  chunk_size: 512
-  chunk_overlap: 50
-  separators:
-    - "\n\n"
-    - "\n"
-    - "."
-    - "!"
-    - "?"
-    - " "
-    - ""
-
-# Retrieval configuration
-retrieval:
-  top_k: 5
-  similarity_threshold: 0.7
-  use_mmr: false
-  mmr_lambda: 0.5
-
-# Generation configuration
-generation:
-  provider: deepseek
-  model: deepseek-chat
-  temperature: 0.7
-  max_tokens: 2000
-  timeout: 30
-```
-
-### ⑤ Start Service
-
-#### 1. Local Development Mode
-
-Supports hot reload and debugging:
+### Docker Deployment
 
 ```bash
-# Start using uv (recommended)
-uv run python src/main.py
-
-# Or start using uvicorn directly
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Use start script (Linux/Mac)
-bash scripts/start.sh
-
-# Use start script (Windows)
-scripts/start.bat
-```
-
-After successful startup, you can access:
-
-- API Documentation: `http://localhost:8000/docs`
-- ReDoc Documentation: `http://localhost:8000/redoc`
-
-#### 2. Docker Containerized Deployment
-
-Start with Docker Compose:
-
-```bash
-# Build and start service
+# Build and start
 docker-compose up -d
 
-# View service status
-docker-compose ps
-
-# View service logs
+# View logs
 docker-compose logs -f
-
-# Stop service
-docker-compose down
-
-# Restart service
-docker-compose restart
 ```
 
-Docker deployment advantages:
-
-- Environment isolation
-- One-click deployment
-- Easy to scale
-
-### ⑥ Common Commands
-
-#### Test Related
+## Common Commands
 
 ```bash
-# Run all tests
+# Run tests
 uv run pytest tests/
 
-# Run unit tests
-uv run pytest tests/unit/
-
-# Run integration tests
-uv run pytest tests/integration/
-
-# Generate coverage report
-uv run pytest --cov=src --cov-report=html --cov-report=term
-
-# View coverage report
-# Open htmlcov/index.html file
-```
-
-#### Code Quality
-
-```bash
-# Code formatting
-uv run black src/ tests/ examples/
-
-# Code checking
-uv run ruff check src/ tests/ examples/ --fix
+# Format code
+uv run ruff check src/ --fix
+uv run ruff format src/
 
 # Type checking
 uv run mypy src/
-```
 
-#### Dependency Management
-
-```bash
-# Sync dependencies
-uv sync
-
-# Add dependency
-uv add package-name
-
-# Add development dependency
-uv add --group dev package-name
-
-# Update dependencies
-uv sync --upgrade
+# Install pre-commit hooks
+uv run pre-commit install
 ```
 
 ## Tech Stack
 
-### Web Framework
-- **FastAPI**: Modern, high-performance web framework
-- **Uvicorn**: ASGI server
-
-### Data Storage
-- **Chroma**: Vector database
-- **JSON**: Document metadata storage
-
-### Machine Learning
-- **Sentence-Transformers**: Text embedding (BGE-M3)
-- **NumPy**: Numerical computing
-
-### Utilities
-- **Pydantic**: Data validation and settings management
-- **Loguru**: Logging
-- **PyYAML**: YAML configuration parsing
-- **httpx**: Async HTTP client
-
-### Deployment
-- **Docker**: Containerization
-- **Docker Compose**: Service orchestration
+| Category | Technology |
+|----------|------------|
+| Web Framework | FastAPI + Uvicorn |
+| Data Storage | Chroma (Vector Database) |
+| Embedding Model | BGE-M3 (BAAI Open Source) |
+| LLM | DeepSeek / OpenAI |
+| Logging | Loguru |
+| DI Container | Custom IOC Container |
+| Utilities | Pydantic, httpx |
+| Containerization | Docker, docker-compose |
+| CI/CD | GitHub Actions |
 
 ## API Documentation
 
-After starting the service, access API documentation at:
+### Health Check
 
-### Swagger UI
-
-Interactive API documentation:
-```
-http://localhost:8000/docs
+```bash
+GET /api/v1/health
 ```
 
-### ReDoc
+### Document Management
 
-Read-only API documentation:
-```
-http://localhost:8000/redoc
-```
+```bash
+# Upload document
+POST /api/v1/documents/upload
 
-### OpenAPI JSON
+# List documents
+GET /api/v1/documents
 
-OpenAPI specification:
-```
-http://localhost:8000/openapi.json
-```
+# Get document
+GET /api/v1/documents/{document_id}
 
-## Example Usage
+# Delete document
+DELETE /api/v1/documents/{document_id}
 
-```python
-import asyncio
-import httpx
-
-async def rag_query(query: str):
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8000/api/v1/rag/query",
-            json={
-                "query": query,
-                "top_k": 3,
-                "similarity_threshold": 0.7
-            }
-        )
-        result = response.json()
-        return result
-
-# Run example
-answer = asyncio.run(rag_query("What is Python?"))
-print(answer["data"]["answer"])
+# Get document status
+GET /api/v1/documents/{document_id}/status
 ```
 
-For more examples, see the [examples/](examples/) directory.
+### RAG Query
+
+```bash
+# RAG Q&A
+POST /api/v1/rag/query
+
+# Retrieval only
+POST /api/v1/rag/retrieve
+
+# Text embedding
+POST /api/v1/rag/embed
+
+# Statistics
+GET /api/v1/rag/stats
+```
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## References
-
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Chroma Documentation](https://docs.trychroma.com/)
-- [Sentence-Transformers Documentation](https://www.sbert.net/)
-- [BGE-M3 Model](https://github.com/FlagOpen/FlagEmbedding)
-- [Python Documentation](https://docs.python.org/3.11/)
+This project is open source under [MIT License](./LICENSE).
 
 ## Contact
 
-- **Author**: John Young (aka 夜雨诗来)
-- **Email**: john.young@foxmail.com
-- **Gitee**: https://gitee.com/yeyushilai
-- **GitHub**: https://github.com/yeyushilai
+- Author: John Young
+- Email: john.young@foxmail.com
+- Gitee: https://gitee.com/yeyushilai
+- GitHub: https://github.com/yeyushilai
 
----
+## References
 
-<div align="center">
-
-If this project helps you, please give it a ⭐️
-
-Made with ❤️ by 夜雨诗来
-
-</div>
+- [Python](https://docs.python.org/3.11/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [uv](https://github.com/astral-sh/uv)
+- [Chroma](https://docs.trychroma.com/)
+- [Sentence Transformers](https://www.sbert.net/)
+- [Pydantic](https://docs.pydantic.dev/)

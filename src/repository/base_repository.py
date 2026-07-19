@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-仓库基类
-定义数据访问层的基础接口
+Base Repository Module
+
+仓库基类，定义数据访问层的基础接口
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 
 class BaseRepository(ABC):
@@ -23,6 +24,6 @@ class BaseRepository(ABC):
         pass
 
     @abstractmethod
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
         pass

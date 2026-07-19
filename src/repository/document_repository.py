@@ -1,102 +1,82 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-文档仓库
-基于JSON的文档元数据存储
+Document Repository Module
+
+文档仓库，封装文档存储的数据访问操作
 """
 
-import json
-from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 from repository.base_repository import BaseRepository
+from infras.document_store.json_store import JSONDocumentStore
 from core.logger import logger
-from core.exceptions import DatabaseError
 
 
 class DocumentRepository(BaseRepository):
     """文档仓库"""
 
     def __init__(self, storage_path: str = "./data/documents"):
-        self.storage_path = Path(storage_path)
-        self.storage_path.mkdir(parents=True, exist_ok=True)
+        self._store = JSONDocumentStore(storage_path=storage_path)
+        self._initialized = False
 
     def initialize(self) -> None:
-        """初始化文档仓库"""
-        logger.info(f"DocumentRepository initialized at {self.storage_path}")
+        """初始化文档存储"""
+        if self._initialized:
+            return
+        self._store.initialize()
+        self._initialized = True
+        logger.info("DocumentRepository initialized")
 
     def shutdown(self) -> None:
-        """关闭文档仓库"""
-        logger.info("DocumentRepository shut down")
+        """关闭文档存储"""
+        if self._initialized:
+            self._store.shutdown()
+            self._initialized = False
+            logger.info("DocumentRepository shut down")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
-        return {
-            "type": "document",
-            "storage_path": str(self.storage_path),
-            "count": len(list(self.storage_path.glob("*.json")))
-        }
+        return self._store.get_stats()
 
-    def _get_document_path(self, document_id: str) -> Path:
-        """获取文档文件路径"""
-        return self.storage_path / f"{document_id}.json"
-
-    def save(self, document: Dict[str, Any]) -> None:
+    def save(self, data: dict[str, Any]) -> str:
         """保存文档"""
-        try:
-            file_path = self._get_document_path(document["document_id"])
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(document, f, ensure_ascii=False, indent=2)
-            logger.debug(f"Saved document {document['document_id']}")
-        except Exception as e:
-            logger.error(f"Failed to save document: {e}")
-            raise DatabaseError(f"Failed to save document: {e}") from e
+        self._ensure_initialized()
+        document_id = data.get("document_id")
+        if not document_id:
+            raise ValueError("document_id is required")
+        self._store.save(document_id, data)
+        return document_id
 
-    def load(self, document_id: str) -> Optional[Dict[str, Any]]:
+    def load(self, document_id: str) -> dict[str, Any] | None:
         """加载文档"""
-        try:
-            file_path = self._get_document_path(document_id)
-            if not file_path.exists():
-                return None
-            with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load document: {e}")
-            raise DatabaseError(f"Failed to load document: {e}") from e
+        self._ensure_initialized()
+        return self._store.load(document_id)
 
-    def delete(self, document_id: str) -> bool:
-        """删除文档"""
-        try:
-            file_path = self._get_document_path(document_id)
-            if not file_path.exists():
-                return False
-            file_path.unlink()
-            logger.debug(f"Deleted document {document_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to delete document: {e}")
-            raise DatabaseError(f"Failed to delete document: {e}") from e
-
-    def update(self, document_id: str, updates: Dict[str, Any]) -> None:
+    def update(self, document_id: str, data: dict[str, Any]) -> None:
         """更新文档"""
-        document = self.load(document_id)
-        if document is None:
-            raise DatabaseError(f"Document {document_id} not found")
-        document.update(updates)
-        self.save(document)
+        self._ensure_initialized()
+        existing = self._store.load(document_id)
+        if existing:
+            existing.update(data)
+            self._store.save(document_id, existing)
 
-    def list_all(self) -> List[Dict[str, Any]]:
+    def delete(self, document_id: str) -> None:
+        """删除文档"""
+        self._ensure_initialized()
+        self._store.delete(document_id)
+
+    def list_all(self) -> list[dict[str, Any]]:
         """列出所有文档"""
-        try:
-            documents = []
-            for file_path in self.storage_path.glob("*.json"):
-                with open(file_path, "r", encoding="utf-8") as f:
-                    documents.append(json.load(f))
-            return documents
-        except Exception as e:
-            logger.error(f"Failed to list documents: {e}")
-            raise DatabaseError(f"Failed to list documents: {e}") from e
+        self._ensure_initialized()
+        return self._store.list_all()
 
     def exists(self, document_id: str) -> bool:
         """检查文档是否存在"""
-        return self._get_document_path(document_id).exists()
+        self._ensure_initialized()
+        return self._store.load(document_id) is not None
+
+    def _ensure_initialized(self) -> None:
+        """确保已初始化"""
+        if not self._initialized:
+            raise RuntimeError("DocumentRepository not initialized. Call initialize() first.")

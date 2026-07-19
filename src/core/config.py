@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-应用配置管理
+Settings Configuration Module
+
+全局配置中心
 支持从环境变量和YAML配置文件读取配置
 """
 
@@ -112,8 +114,7 @@ class Settings:
     优先级：环境变量 > YAML配置文件 > 默认配置
     """
 
-    # 配置文件路径
-    CONFIG_FILE_PATH: Final[str] = 'config.yaml'
+    CONFIG_FILE_PATH: Final[str] = "config.yaml"
 
     def __init__(self) -> None:
         """初始化配置"""
@@ -122,118 +123,95 @@ class Settings:
         self._parse_config()
 
     def _get_default_config(self) -> dict[str, Any]:
-        """获取默认配置
-
-        Returns:
-            dict[str, Any]: 默认配置字典
-        """
+        """获取默认配置"""
         return {
-            'server': {
-                'host': '0.0.0.0',
-                'port': 8000,
-                'debug': True,
-                'workers': 4,
-                'environment': 'development'
+            "server": {
+                "host": "0.0.0.0",
+                "port": 8000,
+                "debug": True,
+                "workers": 4,
+                "environment": "development",
             },
-            'logging': {
-                'level': 'INFO',
-                'file_path': 'logs/x-rag-{time:YYYYMMDDHHmmss}.log',
-                'rotation': '1 day',
-                'retention': '7 days'
+            "logging": {
+                "level": "INFO",
+                "file_path": "logs/x-rag-{time:YYYYMMDDHHmmss}.log",
+                "rotation": "1 day",
+                "retention": "7 days",
             },
-            'rate_limit': {
-                'enabled': False,
-                'requests_per_minute': 60,
-                'requests_per_hour': 1000
+            "rate_limit": {
+                "enabled": False,
+                "requests_per_minute": 60,
+                "requests_per_hour": 1000,
             },
-            'cors': {
-                'enabled': True,
-                'allow_origins': ['*'],
-                'allow_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-                'allow_headers': ['*'],
-                'allow_credentials': False
+            "cors": {
+                "enabled": True,
+                "allow_origins": ["*"],
+                "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": ["*"],
+                "allow_credentials": False,
             },
-            'api': {
-                'prefix': '/api/v1',
-                'title': 'x-rag API',
-                'description': 'RAG学习和实训项目API',
-                'version': '1.0.0'
+            "api": {
+                "prefix": "/api/v1",
+                "title": "x-rag API",
+                "description": "RAG学习和实训项目API",
+                "version": "1.0.0",
             },
-            'embedding': {
-                'model': 'BAAI/bge-m3',
-                'device': 'cpu',
-                'batch_size': 32,
-                'cache_size': 1000,
-                'normalize': True
+            "embedding": {
+                "model": "BAAI/bge-m3",
+                "device": "cpu",
+                "batch_size": 32,
+                "cache_size": 1000,
+                "normalize": True,
             },
-            'vector_store': {
-                'type': 'chroma',
-                'persist_directory': './data/chroma',
-                'collection_name': 'documents',
-                'distance': 'cosine'
+            "vector_store": {
+                "type": "chroma",
+                "persist_directory": "./data/chroma",
+                "collection_name": "documents",
+                "distance": "cosine",
             },
-            'text_splitter': {
-                'chunk_size': 512,
-                'chunk_overlap': 50,
-                'separators': ['\n\n', '\n', '。', '！', '？', ' ', '']
+            "text_splitter": {
+                "chunk_size": 512,
+                "chunk_overlap": 50,
+                "separators": ["\n\n", "\n", "。", "！", "？", " ", ""],
             },
-            'retrieval': {
-                'top_k': 5,
-                'similarity_threshold': 0.7,
-                'use_mmr': False,
-                'mmr_lambda': 0.5
+            "retrieval": {
+                "top_k": 5,
+                "similarity_threshold": 0.7,
+                "use_mmr": False,
+                "mmr_lambda": 0.5,
             },
-            'generation': {
-                'provider': 'deepseek',
-                'model': 'deepseek-chat',
-                'temperature': 0.7,
-                'max_tokens': 2000,
-                'timeout': 30
-            }
+            "generation": {
+                "provider": "deepseek",
+                "model": "deepseek-chat",
+                "temperature": 0.7,
+                "max_tokens": 2000,
+                "timeout": 30,
+            },
         }
 
     def _load_config(self) -> dict[str, Any]:
         """加载配置
 
         优先级：环境变量 > YAML配置文件 > 默认配置
-
-        Returns:
-            dict[str, Any]: 合并后的配置
         """
-
-        # 获取默认配置
         config: dict[str, Any] = self._get_default_config()
-
-        # 从YAML文件加载配置
         self._load_from_file(config)
-
-        # 从环境变量加载配置（优先级最高）
         self._load_from_env(config)
-
         return config
 
     def _load_from_file(self, config: dict[str, Any]) -> None:
-        """从YAML文件加载配置
-
-        Args:
-            config: 配置字典
-        """
+        """从YAML文件加载配置"""
         config_file: Path = Path(self.CONFIG_FILE_PATH)
         if config_file.exists():
             try:
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     file_config: dict[str, Any] = yaml.safe_load(f) or {}
                 self._merge_config(config, file_config)
             except Exception as e:
-                print(f"警告: 无法加载配置文件 {self.CONFIG_FILE_PATH}: {e}")
+                print(f"Warning: Cannot load config file {self.CONFIG_FILE_PATH}: {e}")
 
     def _merge_config(self, base: dict[str, Any], override: dict[str, Any]) -> None:
-        """递归合并配置
-
-        Args:
-            base: 基础配置字典
-            override: 要覆盖的配置字典
-        """
+        """递归合并配置"""
         for key, value in override.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
                 self._merge_config(base[key], value)
@@ -241,116 +219,70 @@ class Settings:
                 base[key] = value
 
     def _load_from_env(self, config: dict[str, Any]) -> None:
-        """从环境变量加载配置
+        """从环境变量加载配置"""
+        env_mappings = {
+            "DEBUG": ("server", "debug", lambda v: v.lower() == "true"),
+            "PORT": ("server", "port", int),
+            "SERVER_PORT": ("server", "port", int),
+            "SERVER_HOST": ("server", "host", str),
+            "LOG_LEVEL": ("logging", "level", str),
+            "LOG_FILE_PATH": ("logging", "file_path", str),
+            "LOG_ROTATION": ("logging", "rotation", str),
+            "LOG_RETENTION": ("logging", "retention", str),
+            "EMBEDDING_MODEL": ("embedding", "model", str),
+            "EMBEDDING_DEVICE": ("embedding", "device", str),
+            "EMBEDDING_BATCH_SIZE": ("embedding", "batch_size", int),
+            "EMBEDDING_CACHE_SIZE": ("embedding", "cache_size", int),
+            "EMBEDDING_NORMALIZE": ("embedding", "normalize", lambda v: v.lower() == "true"),
+            "VECTOR_STORE_PERSIST_DIR": ("vector_store", "persist_directory", str),
+            "VECTOR_STORE_COLLECTION_NAME": ("vector_store", "collection_name", str),
+            "VECTOR_STORE_DISTANCE": ("vector_store", "distance", str),
+            "TEXT_SPLITTER_CHUNK_SIZE": ("text_splitter", "chunk_size", int),
+            "TEXT_SPLITTER_CHUNK_OVERLAP": ("text_splitter", "chunk_overlap", int),
+            "RETRIEVAL_TOP_K": ("retrieval", "top_k", int),
+            "RETRIEVAL_SIMILARITY_THRESHOLD": ("retrieval", "similarity_threshold", float),
+            "RETRIEVAL_USE_MMR": ("retrieval", "use_mmr", lambda v: v.lower() == "true"),
+            "RETRIEVAL_MMR_LAMBDA": ("retrieval", "mmr_lambda", float),
+            "GENERATION_PROVIDER": ("generation", "provider", str),
+            "GENERATION_MODEL": ("generation", "model", str),
+            "GENERATION_TEMPERATURE": ("generation", "temperature", float),
+            "GENERATION_MAX_TOKENS": ("generation", "max_tokens", int),
+            "GENERATION_TIMEOUT": ("generation", "timeout", int),
+            "API_PREFIX": ("api", "prefix", str),
+            "RATE_LIMIT_ENABLED": ("rate_limit", "enabled", lambda v: v.lower() == "true"),
+            "RATE_LIMIT_REQUESTS_PER_MINUTE": ("rate_limit", "requests_per_minute", int),
+            "RATE_LIMIT_REQUESTS_PER_HOUR": ("rate_limit", "requests_per_hour", int),
+            "CORS_ENABLED": ("cors", "enabled", lambda v: v.lower() == "true"),
+            "CORS_ALLOW_ORIGINS": ("cors", "allow_origins", str),
+        }
 
-        Args:
-            config: 配置字典
-        """
-        # 服务器配置
-        if os.environ.get('DEBUG'):
-            config['server']['debug'] = os.environ.get('DEBUG').lower() == 'true'
-        if os.environ.get('PORT'):
-            config['server']['port'] = int(os.environ.get('PORT'))
-        if os.environ.get('SERVER_PORT'):
-            config['server']['port'] = int(os.environ.get('SERVER_PORT'))
-        if os.environ.get('SERVER_HOST'):
-            config['server']['host'] = os.environ.get('SERVER_HOST')
-
-        # 日志配置
-        if os.environ.get('LOG_LEVEL'):
-            config['logging']['level'] = os.environ.get('LOG_LEVEL')
-        if os.environ.get('LOG_FILE_PATH'):
-            config['logging']['file_path'] = os.environ.get('LOG_FILE_PATH')
-        if os.environ.get('LOG_ROTATION'):
-            config['logging']['rotation'] = os.environ.get('LOG_ROTATION')
-        if os.environ.get('LOG_RETENTION'):
-            config['logging']['retention'] = os.environ.get('LOG_RETENTION')
-
-        # 向量模型配置
-        if os.environ.get('EMBEDDING_MODEL'):
-            config['embedding']['model'] = os.environ.get('EMBEDDING_MODEL')
-        if os.environ.get('EMBEDDING_DEVICE'):
-            config['embedding']['device'] = os.environ.get('EMBEDDING_DEVICE')
-        if os.environ.get('EMBEDDING_BATCH_SIZE'):
-            config['embedding']['batch_size'] = int(os.environ.get('EMBEDDING_BATCH_SIZE'))
-        if os.environ.get('EMBEDDING_CACHE_SIZE'):
-            config['embedding']['cache_size'] = int(os.environ.get('EMBEDDING_CACHE_SIZE'))
-        if os.environ.get('EMBEDDING_NORMALIZE'):
-            config['embedding']['normalize'] = os.environ.get('EMBEDDING_NORMALIZE').lower() == 'true'
-
-        # 向量存储配置
-        if os.environ.get('VECTOR_STORE_PERSIST_DIR'):
-            config['vector_store']['persist_directory'] = os.environ.get('VECTOR_STORE_PERSIST_DIR')
-        if os.environ.get('VECTOR_STORE_COLLECTION_NAME'):
-            config['vector_store']['collection_name'] = os.environ.get('VECTOR_STORE_COLLECTION_NAME')
-        if os.environ.get('VECTOR_STORE_DISTANCE'):
-            config['vector_store']['distance'] = os.environ.get('VECTOR_STORE_DISTANCE')
-
-        # 文本切分配置
-        if os.environ.get('TEXT_SPLITTER_CHUNK_SIZE'):
-            config['text_splitter']['chunk_size'] = int(os.environ.get('TEXT_SPLITTER_CHUNK_SIZE'))
-        if os.environ.get('TEXT_SPLITTER_CHUNK_OVERLAP'):
-            config['text_splitter']['chunk_overlap'] = int(os.environ.get('TEXT_SPLITTER_CHUNK_OVERLAP'))
-
-        # 检索配置
-        if os.environ.get('RETRIEVAL_TOP_K'):
-            config['retrieval']['top_k'] = int(os.environ.get('RETRIEVAL_TOP_K'))
-        if os.environ.get('RETRIEVAL_SIMILARITY_THRESHOLD'):
-            config['retrieval']['similarity_threshold'] = float(os.environ.get('RETRIEVAL_SIMILARITY_THRESHOLD'))
-        if os.environ.get('RETRIEVAL_USE_MMR'):
-            config['retrieval']['use_mmr'] = os.environ.get('RETRIEVAL_USE_MMR').lower() == 'true'
-        if os.environ.get('RETRIEVAL_MMR_LAMBDA'):
-            config['retrieval']['mmr_lambda'] = float(os.environ.get('RETRIEVAL_MMR_LAMBDA'))
-
-        # 生成配置
-        if os.environ.get('GENERATION_PROVIDER'):
-            config['generation']['provider'] = os.environ.get('GENERATION_PROVIDER')
-        if os.environ.get('GENERATION_MODEL'):
-            config['generation']['model'] = os.environ.get('GENERATION_MODEL')
-        if os.environ.get('GENERATION_TEMPERATURE'):
-            config['generation']['temperature'] = float(os.environ.get('GENERATION_TEMPERATURE'))
-        if os.environ.get('GENERATION_MAX_TOKENS'):
-            config['generation']['max_tokens'] = int(os.environ.get('GENERATION_MAX_TOKENS'))
-        if os.environ.get('GENERATION_TIMEOUT'):
-            config['generation']['timeout'] = int(os.environ.get('GENERATION_TIMEOUT'))
-
-        # API配置
-        if os.environ.get('API_PREFIX'):
-            config['api']['prefix'] = os.environ.get('API_PREFIX')
-
-        # 限流配置
-        if os.environ.get('RATE_LIMIT_ENABLED'):
-            config['rate_limit']['enabled'] = os.environ.get('RATE_LIMIT_ENABLED').lower() == 'true'
-        if os.environ.get('RATE_LIMIT_REQUESTS_PER_MINUTE'):
-            config['rate_limit']['requests_per_minute'] = int(os.environ.get('RATE_LIMIT_REQUESTS_PER_MINUTE'))
-        if os.environ.get('RATE_LIMIT_REQUESTS_PER_HOUR'):
-            config['rate_limit']['requests_per_hour'] = int(os.environ.get('RATE_LIMIT_REQUESTS_PER_HOUR'))
-
-        # CORS配置
-        if os.environ.get('CORS_ENABLED'):
-            config['cors']['enabled'] = os.environ.get('CORS_ENABLED').lower() == 'true'
-        if os.environ.get('CORS_ALLOW_ORIGINS'):
-            config['cors']['allow_origins'] = os.environ.get('CORS_ALLOW_ORIGINS')
+        for env_key, (section, field_key, converter) in env_mappings.items():
+            env_value = os.environ.get(env_key)
+            if env_value is not None:
+                try:
+                    config[section][field_key] = converter(env_value)
+                except (ValueError, TypeError):
+                    pass
 
     def _parse_config(self) -> None:
         """解析配置到具体配置对象"""
-        self.server = ServerConfig(**self._config['server'])
-        self.logging = LoggingConfig(**self._config['logging'])
-        self.rate_limit = RateLimitConfig(**self._config['rate_limit'])
-        self.cors = CORSConfig(**self._config['cors'])
-        self.api = APIConfig(**self._config['api'])
-        self.embedding = EmbeddingConfig(**self._config['embedding'])
-        self.vector_store = VectorStoreConfig(**self._config['vector_store'])
-        self.text_splitter = TextSplitterConfig(**self._config['text_splitter'])
-        self.retrieval = RetrievalConfig(**self._config['retrieval'])
-        self.generation = GenerationConfig(**self._config['generation'])
+        self.server = ServerConfig(**self._config["server"])
+        self.logging = LoggingConfig(**self._config["logging"])
+        self.rate_limit = RateLimitConfig(**self._config["rate_limit"])
+        self.cors = CORSConfig(**self._config["cors"])
+        self.api = APIConfig(**self._config["api"])
+        self.embedding = EmbeddingConfig(**self._config["embedding"])
+        self.vector_store = VectorStoreConfig(**self._config["vector_store"])
+        self.text_splitter = TextSplitterConfig(**self._config["text_splitter"])
+        self.retrieval = RetrievalConfig(**self._config["retrieval"])
+        self.generation = GenerationConfig(**self._config["generation"])
 
     def reload(self) -> None:
         """重新加载配置"""
         self._config = self._load_config()
         self._parse_config()
 
-    # ===== 服务器配置属性 =====
+    # === 属性快捷方式 ===
     @property
     def SERVER_HOST(self) -> str:
         return self.server.host
@@ -364,10 +296,6 @@ class Settings:
         return self.server.debug
 
     @property
-    def PORT(self) -> int:
-        return self.server.port
-
-    @property
     def SERVER_WORKERS(self) -> int:
         return self.server.workers
 
@@ -375,7 +303,6 @@ class Settings:
     def SERVER_ENVIRONMENT(self) -> str:
         return self.server.environment
 
-    # ===== 日志配置属性 =====
     @property
     def LOG_LEVEL(self) -> str:
         return self.logging.level
@@ -392,7 +319,6 @@ class Settings:
     def LOG_RETENTION(self) -> str:
         return self.logging.retention
 
-    # ===== 向量模型配置属性 =====
     @property
     def EMBEDDING_MODEL(self) -> str:
         return self.embedding.model
@@ -413,7 +339,6 @@ class Settings:
     def EMBEDDING_NORMALIZE(self) -> bool:
         return self.embedding.normalize
 
-    # ===== 向量存储配置属性 =====
     @property
     def VECTOR_STORE_PERSIST_DIR(self) -> str:
         return self.vector_store.persist_directory
@@ -430,7 +355,6 @@ class Settings:
     def VECTOR_STORE_TYPE(self) -> str:
         return self.vector_store.type
 
-    # ===== 文本切分配置属性 =====
     @property
     def TEXT_SPLITTER_CHUNK_SIZE(self) -> int:
         return self.text_splitter.chunk_size
@@ -443,7 +367,6 @@ class Settings:
     def TEXT_SPLITTER_SEPARATORS(self) -> list[str]:
         return self.text_splitter.separators
 
-    # ===== 检索配置属性 =====
     @property
     def RETRIEVAL_TOP_K(self) -> int:
         return self.retrieval.top_k
@@ -460,7 +383,6 @@ class Settings:
     def RETRIEVAL_MMR_LAMBDA(self) -> float:
         return self.retrieval.mmr_lambda
 
-    # ===== 生成配置属性 =====
     @property
     def GENERATION_PROVIDER(self) -> str:
         return self.generation.provider
@@ -481,7 +403,6 @@ class Settings:
     def GENERATION_TIMEOUT(self) -> int:
         return self.generation.timeout
 
-    # ===== API配置属性 =====
     @property
     def API_PREFIX(self) -> str:
         return self.api.prefix
@@ -498,7 +419,6 @@ class Settings:
     def API_VERSION(self) -> str:
         return self.api.version
 
-    # ===== 限流配置属性 =====
     @property
     def RATE_LIMIT_ENABLED(self) -> bool:
         return self.rate_limit.enabled
@@ -511,7 +431,6 @@ class Settings:
     def RATE_LIMIT_REQUESTS_PER_HOUR(self) -> int:
         return self.rate_limit.requests_per_hour
 
-    # ===== CORS配置属性 =====
     @property
     def CORS_ENABLED(self) -> bool:
         return self.cors.enabled
