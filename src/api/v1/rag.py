@@ -17,37 +17,13 @@ from schemas.rag import (
 )
 from core.logger import logger
 from core.exceptions import RetrievalError, GenerationError, ConfigurationError
+from core.dependencies import get_retrieval_service, get_generation_service
 from services.retrieval_service import RetrievalService
 from services.generation_service import GenerationService
 from infras.embedding.bge_model import CachedBGEEmbeddingModel
 from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()
-
-# 全局服务实例（通过lifespan注入）
-_retrieval_service: RetrievalService | None = None
-_generation_service: GenerationService | None = None
-
-
-def set_services(retrieval_service: RetrievalService, generation_service: GenerationService) -> None:
-    """设置服务实例"""
-    global _retrieval_service, _generation_service
-    _retrieval_service = retrieval_service
-    _generation_service = generation_service
-
-
-def get_retrieval_service() -> RetrievalService:
-    """获取检索服务"""
-    if _retrieval_service is None:
-        raise RuntimeError("RetrievalService not initialized")
-    return _retrieval_service
-
-
-def get_generation_service() -> GenerationService:
-    """获取生成服务"""
-    if _generation_service is None:
-        raise RuntimeError("GenerationService not initialized")
-    return _generation_service
 
 
 @router.post(
@@ -127,14 +103,14 @@ async def rag_query(
         }
 
     except RetrievalError as e:
-        logger.error(f"Retrieval error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Retrieval error")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except GenerationError as e:
-        logger.error(f"Generation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Generation error")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"RAG query error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.exception("RAG query error")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @router.post(
@@ -180,11 +156,11 @@ async def retrieve_docs(
         }
 
     except RetrievalError as e:
-        logger.error(f"Retrieval error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Retrieval error")
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Retrieve error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.exception("Retrieve error")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @router.post(

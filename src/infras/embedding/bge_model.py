@@ -6,6 +6,11 @@ BGE Embedding Model Module
 BGE嵌入模型实现
 """
 
+import os
+
+# 使用 HuggingFace 镜像加速下载
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 import hashlib
 from typing import Optional
 from sentence_transformers import SentenceTransformer
@@ -85,7 +90,7 @@ class BGEEmbeddingModel(EmbeddingModelBase):
             try:
                 logger.info(f"Loading embedding model: {self._model_name} on {self._device}")
                 self._model = SentenceTransformer(self._model_name, device=self._device)
-                self._dimension = self._model.get_sentence_embedding_dimension()
+                self._dimension = self._model.get_embedding_dimension()
                 logger.info(f"Loaded embedding model with dimension {self._dimension}")
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
@@ -125,6 +130,7 @@ class CachedBGEEmbeddingModel(BGEEmbeddingModel):
                 uncached_indices.append(idx)
 
         if uncached_texts:
+            logger.info(f"Encoding {len(uncached_texts)} uncached texts")
             new_embeddings = super().encode(uncached_texts, normalize)
 
             for text, embedding in zip(uncached_texts, new_embeddings):

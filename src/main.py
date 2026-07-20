@@ -15,6 +15,7 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -23,6 +24,7 @@ from core.logger import logger
 from core.config import settings
 from core.middleware import setup_middleware
 from core.exceptions import AppException
+from core.services import AppServices
 from Repositories.vector_repository import VectorRepository
 from Repositories.document_repository import DocumentRepository
 from services.indexing_service import IndexingService
@@ -31,17 +33,9 @@ from services.generation_service import GenerationService
 from api.router import api_router
 
 
-# 全局服务实例
-_indexing_service: IndexingService | None = None
-_retrieval_service: RetrievalService | None = None
-_generation_service: GenerationService | None = None
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global _indexing_service, _retrieval_service, _generation_service
-
     logger.info("Starting x-rag application...")
 
     try:
@@ -54,14 +48,14 @@ async def lifespan(app: FastAPI):
         doc_repo = DocumentRepository(storage_path="./data/documents")
 
         # 初始化Service层
-        _indexing_service = IndexingService(
+        indexing_service = IndexingService(
             vector_repo=vector_repo,
             doc_repo=doc_repo,
             chunk_size=settings.TEXT_SPLITTER_CHUNK_SIZE,
             chunk_overlap=settings.TEXT_SPLITTER_CHUNK_OVERLAP,
         )
-        _retrieval_service = RetrievalService(vector_repo=vector_repo)
-        _generation_service = GenerationService(
+        retrieval_service = RetrievalService(vector_repo=vector_repo)
+        generation_service = GenerationService(
             default_provider=settings.GENERATION_PROVIDER,
             default_model=settings.GENERATION_MODEL,
             default_temperature=settings.GENERATION_TEMPERATURE,
@@ -69,16 +63,16 @@ async def lifespan(app: FastAPI):
             default_timeout=settings.GENERATION_TIMEOUT,
         )
 
-        # 初始化服务
-        _indexing_service.initialize()
-        _retrieval_service.initialize()
-        _generation_service.initialize()
+        # 创建服务容器并初始化
+        services = AppServices(
+            indexing_service=indexing_service,
+            retrieval_service=retrieval_service,
+            generation_service=generation_service,
+        )
+        services.initialize()
 
-        # 注入服务到API层
-        from api.v1 import health, rag, document
-        health.set_services(_indexing_service, _retrieval_service)
-        rag.set_services(_retrieval_service, _generation_service)
-        document.set_services(_indexing_service)
+        # 存储到 app.state
+        app.state.services = services
 
         logger.info("All services initialized successfully")
 
@@ -90,13 +84,10 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("Shutting down x-rag application...")
 
-        # 关闭服务
-        if _indexing_service:
-            _indexing_service.shutdown()
-        if _retrieval_service:
-            _retrieval_service.shutdown()
-        if _generation_service:
-            _generation_service.shutdown()
+        # 从 app.state 获取服务并关闭
+        services: AppServices | None = getattr(app.state, "services", None)
+        if services:
+            services.shutdown()
 
         logger.info("Application shutdown complete")
 

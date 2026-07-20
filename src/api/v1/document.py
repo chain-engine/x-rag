@@ -18,26 +18,11 @@ from schemas.document import (
 )
 from core.logger import logger
 from core.exceptions import DocumentError, ValidationError
+from core.dependencies import get_indexing_service
 from services.indexing_service import IndexingService
 from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()
-
-# 全局服务实例（通过lifespan注入）
-_indexing_service: IndexingService | None = None
-
-
-def set_services(indexing_service: IndexingService) -> None:
-    """设置服务实例"""
-    global _indexing_service
-    _indexing_service = indexing_service
-
-
-def get_indexing_service() -> IndexingService:
-    """获取索引服务"""
-    if _indexing_service is None:
-        raise RuntimeError("IndexingService not initialized")
-    return _indexing_service
 
 
 @router.post(
@@ -98,11 +83,11 @@ async def upload_document(
         }
 
     except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except DocumentError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Upload error: {e}")
+        logger.exception("Upload error")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -219,10 +204,10 @@ async def delete_document(
         }
 
     except DocumentError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Delete document error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.exception("Delete document error")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @router.get(

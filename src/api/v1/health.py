@@ -7,28 +7,18 @@ Health Check API Module
 """
 
 from datetime import datetime
-from typing import Any
-from fastapi import APIRouter, Request
+from typing import Annotated, Any
+from fastapi import APIRouter, Depends
 
 from schemas.health import HealthCheckResponse, VersionResponse, StatusResponse
 from core.logger import logger
-from constants.common import HTTP_OK
+from core.dependencies import get_indexing_service, get_retrieval_service
+from services.indexing_service import IndexingService
+from services.retrieval_service import RetrievalService
 
 router = APIRouter()
 
-# 全局服务实例（通过lifespan注入）
-_indexing_service = None
-_retrieval_service = None
 _start_time = datetime.utcnow()
-
-
-def set_services(indexing_service=None, retrieval_service=None) -> None:
-    """设置服务实例"""
-    global _indexing_service, _retrieval_service
-    if indexing_service:
-        _indexing_service = indexing_service
-    if retrieval_service:
-        _retrieval_service = retrieval_service
 
 
 @router.get(
@@ -38,31 +28,28 @@ def set_services(indexing_service=None, retrieval_service=None) -> None:
     description="检查系统健康状态",
     tags=["系统"],
 )
-async def health_check() -> dict[str, Any]:
+async def health_check(
+    indexing_service: Annotated[IndexingService, Depends(get_indexing_service)],
+    retrieval_service: Annotated[RetrievalService, Depends(get_retrieval_service)],
+) -> dict[str, Any]:
     """健康检查接口"""
     checks = {}
 
     # 检查向量存储
-    if _retrieval_service:
-        try:
-            vector_count = _retrieval_service.get_vector_count()
-            checks["vector_store"] = "healthy"
-            checks["vector_count"] = vector_count
-        except Exception as e:
-            checks["vector_store"] = f"unhealthy: {str(e)}"
-    else:
-        checks["vector_store"] = "not_initialized"
+    try:
+        vector_count = retrieval_service.get_vector_count()
+        checks["vector_store"] = "healthy"
+        checks["vector_count"] = vector_count
+    except Exception as e:
+        checks["vector_store"] = f"unhealthy: {str(e)}"
 
     # 检查文档存储
-    if _indexing_service:
-        try:
-            doc_stats = _indexing_service.get_stats()
-            checks["document_store"] = "healthy"
-            checks["document_count"] = doc_stats.get("document_stats", {}).get("document_count", 0)
-        except Exception as e:
-            checks["document_store"] = f"unhealthy: {str(e)}"
-    else:
-        checks["document_store"] = "not_initialized"
+    try:
+        doc_stats = indexing_service.get_stats()
+        checks["document_store"] = "healthy"
+        checks["document_count"] = doc_stats.get("document_stats", {}).get("document_count", 0)
+    except Exception as e:
+        checks["document_store"] = f"unhealthy: {str(e)}"
 
     return {
         "status": "healthy",
@@ -96,26 +83,25 @@ async def get_version() -> dict[str, Any]:
     description="获取系统运行状态",
     tags=["系统"],
 )
-async def get_status() -> dict[str, Any]:
+async def get_status(
+    indexing_service: Annotated[IndexingService, Depends(get_indexing_service)],
+    retrieval_service: Annotated[RetrievalService, Depends(get_retrieval_service)],
+) -> dict[str, Any]:
     """系统状态接口"""
-    global _start_time
-
     uptime = (datetime.utcnow() - _start_time).total_seconds()
     vector_count = 0
     document_count = 0
 
-    if _retrieval_service:
-        try:
-            vector_count = _retrieval_service.get_vector_count()
-        except Exception as e:
-            logger.warning(f"Failed to get vector count: {e}")
+    try:
+        vector_count = retrieval_service.get_vector_count()
+    except Exception as e:
+        logger.warning(f"Failed to get vector count: {e}")
 
-    if _indexing_service:
-        try:
-            doc_stats = _indexing_service.get_stats()
-            document_count = doc_stats.get("document_stats", {}).get("document_count", 0)
-        except Exception as e:
-            logger.warning(f"Failed to get document count: {e}")
+    try:
+        doc_stats = indexing_service.get_stats()
+        document_count = doc_stats.get("document_stats", {}).get("document_count", 0)
+    except Exception as e:
+        logger.warning(f"Failed to get document count: {e}")
 
     return {
         "status": "running",

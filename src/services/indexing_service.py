@@ -16,7 +16,7 @@ from Repositories.vector_repository import VectorRepository
 from Repositories.document_repository import DocumentRepository
 from core.logger import logger
 from core.exceptions import DocumentError
-from utils.text_splitter import TextSplitter, SplitStrategy
+from utils.text_splitter import ParagraphSplitter
 from infras.embedding.bge_model import CachedBGEEmbeddingModel
 from constants.rag import (
     DOC_STATUS_PENDING,
@@ -42,18 +42,25 @@ class IndexingService(BaseService):
         self._chunk_overlap = chunk_overlap
         self._initialized = False
         self._embedding_model: CachedBGEEmbeddingModel | None = None
-        self._text_splitter = TextSplitter(
+        self._text_splitter = ParagraphSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
 
     def initialize(self) -> None:
-        """初始化服务"""
+        """初始化服务（仅初始化存储，不加载模型）"""
         self._vector_repo.initialize()
         self._doc_repo.initialize()
-        self._embedding_model = CachedBGEEmbeddingModel()
+        # 不在这里创建 embedding model，延迟到首次使用时
         self._initialized = True
-        logger.info("IndexingService initialized")
+        logger.info("IndexingService initialized (embedding model will be loaded on first use)")
+
+    def _get_embedding_model(self) -> CachedBGEEmbeddingModel:
+        """延迟获取 embedding model"""
+        if self._embedding_model is None:
+            logger.info("Loading embedding model on first use...")
+            self._embedding_model = CachedBGEEmbeddingModel()
+        return self._embedding_model
 
     def shutdown(self) -> None:
         """关闭服务"""
@@ -95,6 +102,7 @@ class IndexingService(BaseService):
 
         try:
             # 保存文档元数据
+            logger.info(f"Indexing document {document_id}: saving metadata...")
             self._doc_repo.save({
                 "document_id": document_id,
                 "file_name": file_name,
@@ -105,20 +113,23 @@ class IndexingService(BaseService):
                 "updated_at": datetime.utcnow().isoformat(),
                 "metadata": metadata,
             })
+            logger.info(f"Document {document_id} metadata saved")
 
             # 切分文本
+            logger.info(f"Document {document_id}: splitting text...")
             chunks = self._text_splitter.split_text(text, metadata)
+            logger.info(f"Document {document_id}: split into {len(chunks)} chunks")
 
             if not chunks:
                 raise DocumentError(f"No chunks generated for document {document_id}")
-
-            logger.info(f"Split document {document_id} into {len(chunks)} chunks")
 
             # 提取文本
             chunk_texts = [chunk.content for chunk in chunks]
 
             # 向量化
-            embeddings = self._embedding_model.encode(chunk_texts, normalize=True)
+            logger.info(f"Document {document_id}: encoding {len(chunk_texts)} chunks...")
+            embeddings = self._get_embedding_model().encode(chunk_texts, normalize=True)
+            logger.info(f"Document {document_id}: encoded successfully")
 
             # 准备向量存储数据
             ids = [chunk.chunk_id for chunk in chunks]
@@ -150,7 +161,9 @@ class IndexingService(BaseService):
             }
 
         except Exception as e:
+            import traceback
             logger.error(f"Failed to index document {document_id}: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             self._doc_repo.update(document_id, {"status": DOC_STATUS_FAILED})
             raise DocumentError(f"Failed to index document {document_id}: {e}") from e
 
