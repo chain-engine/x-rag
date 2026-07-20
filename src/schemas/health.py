@@ -7,6 +7,7 @@ Health Schema Module
 """
 
 from datetime import datetime
+from typing import Any
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -26,7 +27,7 @@ class HealthCheckResponse(BaseModel):
     status: str = Field(..., description="服务状态", examples=["healthy"])
     version: str = Field(..., description="版本号", examples=["1.0.0"])
     timestamp: datetime = Field(..., description="时间戳")
-    checks: dict[str, str] = Field(
+    checks: dict[str, Any] = Field(
         default_factory=dict,
         description="各项检查结果",
     )

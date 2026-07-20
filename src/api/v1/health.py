@@ -58,7 +58,7 @@ async def health_check() -> dict[str, Any]:
         try:
             doc_stats = _indexing_service.get_stats()
             checks["document_store"] = "healthy"
-            checks["document_count"] = len(doc_stats.get("document_stats", {}).get("document_count", 0))
+            checks["document_count"] = doc_stats.get("document_stats", {}).get("document_count", 0)
         except Exception as e:
             checks["document_store"] = f"unhealthy: {str(e)}"
     else:

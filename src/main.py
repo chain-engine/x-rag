@@ -149,7 +149,7 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def general_exception_handler(request, exc: Exception):
         """通用异常处理器"""
-        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+        logger.opt(exception=True).error("Unhandled exception occurred")
         return JSONResponse(
             status_code=500,
             content={
