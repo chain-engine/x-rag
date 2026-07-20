@@ -94,42 +94,242 @@ x-rag/
 
 ## 系统架构
 
-### 分层架构
+### 分层架构图
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                      API 接口层                          │
-│  (api/v1/health.py, rag.py, document.py)               │
-├─────────────────────────────────────────────────────────┤
-│                      业务逻辑层                          │
-│  (service/indexing_service.py, retrieval_service.py, ...) │
-├─────────────────────────────────────────────────────────┤
-│                      数据访问层                          │
-│  (repository/vector_repository.py, document_repository.py) │
-├─────────────────────────────────────────────────────────┤
-│              基础设施层 (infras/)                       │
-│  ┌─────────────┬──────────────┬─────────────────┐       │
-│  │ VectorStore │ DocumentStore│ EmbeddingModel  │       │
-│  │   (Chroma)  │    (JSON)   │   (BGE-M3)     │       │
-│  └─────────────┴──────────────┴─────────────────┘       │
-├─────────────────────────────────────────────────────────┤
-│                      核心支撑层                          │
-│  (core/config.py, logger.py, exceptions.py, container.py) │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "API 接口层 (api)"
+        A1["health.py<br/>健康检查"]
+        A2["rag.py<br/>RAG查询"]
+        A3["document.py<br/>文档管理"]
+        A1 --- A2 --- A3
+    end
+
+    subgraph "业务逻辑层 (service)"
+        S1["IndexingService<br/>索引服务"]
+        S2["RetrievalService<br/>检索服务"]
+        S3["GenerationService<br/>生成服务"]
+    end
+
+    subgraph "数据访问层 (repository)"
+        R1["VectorRepository<br/>向量仓库"]
+        R2["DocumentRepository<br/>文档仓库"]
+    end
+
+    subgraph "基础设施层 (infras)"
+        I1["ChromaVectorStore<br/>向量存储"]
+        I2["JSONDocumentStore<br/>文档存储"]
+        I3["BGEEmbeddingModel<br/>嵌入模型"]
+    end
+
+    subgraph "核心支撑层 (core)"
+        C1["config.py<br/>配置中心"]
+        C2["logger.py<br/>日志模块"]
+        C3["exceptions.py<br/>异常定义"]
+        C4["container.py<br/>依赖注入"]
+        C5["middleware.py<br/>中间件"]
+        C6["response.py<br/>响应封装"]
+    end
+
+    subgraph "数据模型层"
+        M1["models/<br/>ORM实体"]
+        SCH1["schemas/<br/>请求响应模型"]
+        CST1["constants/<br/>常量定义"]
+    end
+
+    subgraph "工具层"
+        U1["text_splitter.py<br/>文本切分"]
+        U2["similarity.py<br/>相似度计算"]
+        U3["embedding.py<br/>向量化"]
+    end
+
+    A1 --> S1
+    A2 --> S2
+    A2 --> S3
+    A3 --> S1
+
+    S1 --> R1
+    S1 --> R2
+    S2 --> R1
+    S3 --> R2
+
+    R1 --> I1
+    R2 --> I2
+    S1 --> I3
+    S2 --> I3
+
+    A1 -.-> C2
+    A2 -.-> C2
+    A3 -.-> C2
+    S1 -.-> C2
+    S2 -.-> C2
+    S3 -.-> C2
+
+    S1 -.-> C1
+    S2 -.-> C1
+    S3 -.-> C1
+
+    A1 -.-> C5
+    A2 -.-> C5
+    A3 -.-> C5
+
+    SCH1 -.-> C1
+    SCH1 -.-> C2
+
+    style A1 fill:#e1f5fe
+    style A2 fill:#e1f5fe
+    style A3 fill:#e1f5fe
+    style S1 fill:#fff3e0
+    style S2 fill:#fff3e0
+    style S3 fill:#fff3e0
+    style R1 fill:#e8f5e9
+    style R2 fill:#e8f5e9
+    style I1 fill:#fce4ec
+    style I2 fill:#fce4ec
+    style I3 fill:#fce4ec
+    style C1 fill:#f3e5f5
+    style C2 fill:#f3e5f5
+    style C3 fill:#f3e5f5
+    style C4 fill:#f3e5f5
+    style C5 fill:#f3e5f5
+    style C6 fill:#f3e5f5
 ```
 
-### 目录依赖关系
+### 核心业务流程图
 
+```mermaid
+flowchart TD
+    Start([用户请求]) --> Health{健康检查?}
+    
+    Health -->|是| HealthCheck[检查服务状态<br/>返回系统健康信息]
+    HealthCheck --> End([响应])
+    
+    Health -->|文档上传| Upload[上传文档]
+    Upload --> Validate[参数校验]
+    Validate -->|失败| Error1[返回错误信息]
+    Validate -->|成功| ReadFile[读取文件内容]
+    
+    ReadFile --> SplitText[文本切分<br/>chunk_size/overlap]
+    SplitText --> Embed[向量化<br/>BGE-M3模型]
+    
+    Embed --> StoreVector[存储向量<br/>Chroma]
+    Embed --> StoreDoc[存储文档<br/>JSON]
+    
+    StoreVector --> Success1[返回上传成功]
+    StoreDoc --> Success1
+    Success1 --> End
+    
+    Health -->|RAG查询| Query[接收查询请求]
+    Query --> EncodeQuery[查询向量化]
+    EncodeQuery --> Search[向量检索<br/>top_k/阈值过滤]
+    
+    Search --> MMR{启用MMR?}
+    MMR -->|是| MMRSort[MMR重排序<br/>平衡相关性与多样性]
+    MMR -->|否| Filter[相似度过滤]
+    MMRSort --> BuildContext
+    Filter --> BuildContext[构建上下文]
+    
+    BuildContext --> LLM{使用LLM?}
+    LLM -->|是| Generate[调用LLM生成<br/>DeepSeek/OpenAI]
+    Generate --> Answer[返回RAG答案]
+    LLM -->|否| JustDocs[仅返回检索文档]
+    
+    Answer --> End
+    JustDocs --> End
+    
+    Error1 --> End
 ```
-src/
-├── api/      → services/
-├── services/ → repositories/ + infras/
-├── repository/→ infras/
-├── infras/   → (无依赖)
-├── core/     → (无依赖)
-├── models/   → (无依赖)
-├── schemas/   → core/
-└── utils/    → core/
+
+### 模块依赖关系图
+
+```mermaid
+graph LR
+    subgraph "src/"
+        subgraph "api/"
+            API["api/v1/<br/>接口层"]
+        end
+        
+        subgraph "service/"
+            SVC["service/<br/>业务逻辑层"]
+        end
+        
+        subgraph "repository/"
+            REPO["repository/<br/>数据访问层"]
+        end
+        
+        subgraph "infras/"
+            INFRAS["infras/<br/>基础设施层"]
+        end
+        
+        subgraph "core/"
+            CORE["core/<br/>核心支撑层"]
+        end
+        
+        subgraph "models/"
+            MODELS["models/<br/>实体模型"]
+        end
+        
+        subgraph "schemas/"
+            SCHEMAS["schemas/<br/>数据模型"]
+        end
+        
+        subgraph "constants/"
+            CONST["constants/<br/>常量定义"]
+        end
+        
+        subgraph "utils/"
+            UTILS["utils/<br/>工具函数"]
+        end
+    end
+
+    API --> SVC
+    SVC --> REPO
+    SVC --> INFRAS
+    SVC --> CORE
+    
+    REPO --> INFRAS
+    REPO --> MODELS
+    
+    SCHEMAS -.-> CORE
+    SCHEMAS -.-> CONST
+    
+    UTILS -.-> CORE
+    UTILS -.-> CONST
+
+    style API fill:#e1f5fe,stroke:#01579b
+    style SVC fill:#fff3e0,stroke:#e65100
+    style REPO fill:#e8f5e9,stroke:#2e7d32
+    style INFRAS fill:#fce4ec,stroke:#c2185b
+    style CORE fill:#f3e5f5,stroke:#7b1fa2
+    style MODELS fill:#e0f7fa,stroke:#00838f
+    style SCHEMAS fill:#fff8e1,stroke:#ff8f00
+    style CONST fill:#efebe9,stroke:#5d4037
+    style UTILS fill:#f1f8e9,stroke:#558b2f
+```
+
+### 依赖规则说明
+
+```mermaid
+graph TD
+    subgraph "依赖规则"
+        R1["✓ API → Service → Repository"]
+        R2["✓ Repository → Infras (获取资源)"]
+        R3["✓ Service → Core (配置/日志)"]
+        R4["✓ Schemas ↔ Core (弱依赖)"]
+        R5["✓ Utils ↔ Core (弱依赖)"]
+    end
+
+    subgraph "禁止规则 ⚠️"
+        D1["✗ 禁止跨层调用 (API → Repository)"]
+        D2["✗ 禁止下层依赖上层"]
+        D3["✗ 禁止循环依赖"]
+        D4["✗ Infras 禁止反向依赖 Repository/Service"]
+    end
+
+    R1 --> D1
+    R2 --> D2
+    R3 --> D3
+    R4 --> D4
 ```
 
 ## 快速开始
