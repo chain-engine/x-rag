@@ -18,7 +18,7 @@ from schemas.document import (
 )
 from core.logger import logger
 from core.exceptions import DocumentError, ValidationError
-from service.indexing_service import IndexingService
+from services.indexing_service import IndexingService
 from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()

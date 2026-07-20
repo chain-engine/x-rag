@@ -17,8 +17,8 @@ from schemas.rag import (
 )
 from core.logger import logger
 from core.exceptions import RetrievalError, GenerationError, ConfigurationError
-from service.retrieval_service import RetrievalService
-from service.generation_service import GenerationService
+from services.retrieval_service import RetrievalService
+from services.generation_service import GenerationService
 from infras.embedding.bge_model import CachedBGEEmbeddingModel
 from constants.common import HTTP_OK, MSG_SUCCESS
 

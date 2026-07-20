@@ -31,19 +31,22 @@ x-rag is a **production-grade RAG (Retrieval-Augmented Generation) learning and 
 ```
 x-rag/
 ├── src/                          # Core source code
+│   ├── .venv/                    # Python virtual environment
 │   ├── api/                      # API interface layer
 │   │   ├── router.py             # Route registration
 │   │   └── v1/                   # API v1
 │   │       ├── health.py          # Health check
 │   │       ├── rag.py            # RAG endpoints
 │   │       └── document.py        # Document management
-│   ├── service/                  # Business logic layer
-│   │   ├── indexing_service.py    # Indexing service
+│   ├── services/                  # Business logic layer
+│   │   ├── base_service.py        # Base service class
+│   │   ├── indexing_service.py   # Indexing service
 │   │   ├── retrieval_service.py   # Retrieval service
-│   │   └── generation_service.py # Generation service
-│   ├── repository/               # Data access layer
+│   │   └── generation_service.py  # Generation service
+│   ├── Repositories/              # Data access layer
+│   │   ├── base_repository.py  # Base repository class
 │   │   ├── vector_repository.py  # Vector repository
-│   │   └── document_repository.py # Document repository
+│   │   └── document_repository.py# Document repository
 │   ├── models/                  # ORM entity layer
 │   │   ├── document.py           # Document entity
 │   │   └── vector.py            # Vector record
@@ -105,13 +108,13 @@ graph TB
         A1 --- A2 --- A3
     end
 
-    subgraph "Business Logic Layer (service)"
+    subgraph "Business Logic Layer (services)"
         S1["IndexingService"]
         S2["RetrievalService"]
         S3["GenerationService"]
     end
 
-    subgraph "Data Access Layer (repository)"
+    subgraph "Data Access Layer (Repositories)"
         R1["VectorRepository"]
         R2["DocumentRepository"]
     end
@@ -249,12 +252,12 @@ graph LR
             API["api/v1/<br/>API Layer"]
         end
         
-        subgraph "service/"
-            SVC["service/<br/>Business Logic"]
+        subgraph "services/"
+            SVC["services/<br/>Business Logic"]
         end
         
-        subgraph "repository/"
-            REPO["repository/<br/>Data Access"]
+        subgraph "Repositories/"
+            REPO["Repositories/<br/>Data Access"]
         end
         
         subgraph "infras/"

@@ -8,7 +8,7 @@ Document Repository Module
 
 from typing import Any
 
-from repository.base_repository import BaseRepository
+from Repositories.base_repository import BaseRepository
 from infras.document_store.json_store import JSONDocumentStore
 from core.logger import logger
 

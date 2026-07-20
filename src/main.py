@@ -23,11 +23,11 @@ from core.logger import logger
 from core.config import settings
 from core.middleware import setup_middleware
 from core.exceptions import AppException
-from repository.vector_repository import VectorRepository
-from repository.document_repository import DocumentRepository
-from service.indexing_service import IndexingService
-from service.retrieval_service import RetrievalService
-from service.generation_service import GenerationService
+from Repositories.vector_repository import VectorRepository
+from Repositories.document_repository import DocumentRepository
+from services.indexing_service import IndexingService
+from services.retrieval_service import RetrievalService
+from services.generation_service import GenerationService
 from api.router import api_router
 
 

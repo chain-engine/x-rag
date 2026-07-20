@@ -10,7 +10,7 @@ import os
 from typing import Any, AsyncIterator
 import httpx
 
-from service.base_service import BaseService
+from services.base_service import BaseService
 from core.logger import logger
 from core.exceptions import GenerationError
 from constants.generation import LLM_PROVIDER_DEEPSEEK, LLM_PROVIDER_OPENAI

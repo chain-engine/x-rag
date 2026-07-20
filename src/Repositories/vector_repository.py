@@ -8,7 +8,7 @@ Vector Repository Module
 
 from typing import Any
 
-from repository.base_repository import BaseRepository
+from Repositories.base_repository import BaseRepository
 from infras.vector_store.chroma import ChromaVectorStore
 from core.logger import logger
 

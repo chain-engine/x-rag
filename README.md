@@ -31,24 +31,27 @@ x-rag 是一个**生产级 RAG（检索增强生成）学习和实训项目**，
 ```
 x-rag/
 ├── src/                          # 核心源码
+│   ├── .venv/                    # Python 虚拟环境
 │   ├── api/                      # API接口层
 │   │   ├── router.py             # 路由注册
 │   │   └── v1/                   # API v1版本
 │   │       ├── health.py          # 健康检查
 │   │       ├── rag.py            # RAG接口
 │   │       └── document.py        # 文档管理
-│   ├── service/                  # 业务逻辑层
-│   │   ├── indexing_service.py    # 索引服务
+│   ├── services/                  # 业务逻辑层
+│   │   ├── base_service.py        # 基础服务类
+│   │   ├── indexing_service.py   # 索引服务
 │   │   ├── retrieval_service.py   # 检索服务
 │   │   └── generation_service.py  # 生成服务
-│   ├── repository/               # 数据访问层
+│   ├── Repositories/              # 数据访问层
+│   │   ├── base_repository.py   # 基础仓库类
 │   │   ├── vector_repository.py  # 向量仓库
-│   │   └── document_repository.py # 文档仓库
+│   │   └── document_repository.py# 文档仓库
 │   ├── models/                  # ORM实体层
 │   │   ├── document.py           # 文档实体
 │   │   └── vector.py            # 向量记录
 │   ├── infras/                  # 基础设施层
-│   │   ├── vector_store/         # 向量存储
+│   │   ├── vector_store/        # 向量存储
 │   │   ├── document_store/       # 文档存储
 │   │   └── embedding/            # 嵌入模型
 │   ├── core/                    # 核心支撑层
@@ -57,12 +60,12 @@ x-rag/
 │   │   ├── exceptions.py         # 异常定义
 │   │   ├── container.py         # 依赖注入容器
 │   │   ├── middleware.py         # 中间件
-│   │   └── response.py           # 响应封装
-│   ├── schemas/                  # 数据模型
+│   │   └── response.py          # 响应封装
+│   ├── schemas/                 # 数据模型
 │   │   ├── rag.py               # RAG相关Schema
-│   │   ├── document.py           # 文档相关Schema
+│   │   ├── document.py          # 文档相关Schema
 │   │   └── health.py            # 健康检查Schema
-│   ├── constants/                # 常量定义
+│   ├── constants/               # 常量定义
 │   │   ├── common.py            # 通用常量
 │   │   ├── rag.py               # RAG常量
 │   │   ├── generation.py         # 生成常量
@@ -105,13 +108,13 @@ graph TB
         A1 --- A2 --- A3
     end
 
-    subgraph "业务逻辑层 (service)"
+    subgraph "业务逻辑层 (services)"
         S1["IndexingService<br/>索引服务"]
         S2["RetrievalService<br/>检索服务"]
         S3["GenerationService<br/>生成服务"]
     end
 
-    subgraph "数据访问层 (repository)"
+    subgraph "数据访问层 (Repositories)"
         R1["VectorRepository<br/>向量仓库"]
         R2["DocumentRepository<br/>文档仓库"]
     end
@@ -249,12 +252,12 @@ graph LR
             API["api/v1/<br/>接口层"]
         end
         
-        subgraph "service/"
-            SVC["service/<br/>业务逻辑层"]
+        subgraph "services/"
+            SVC["services/<br/>业务逻辑层"]
         end
         
-        subgraph "repository/"
-            REPO["repository/<br/>数据访问层"]
+        subgraph "Repositories/"
+            REPO["Repositories/<br/>数据访问层"]
         end
         
         subgraph "infras/"

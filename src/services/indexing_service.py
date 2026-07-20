@@ -11,9 +11,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from service.base_service import BaseService
-from repository.vector_repository import VectorRepository
-from repository.document_repository import DocumentRepository
+from services.base_service import BaseService
+from Repositories.vector_repository import VectorRepository
+from Repositories.document_repository import DocumentRepository
 from core.logger import logger
 from core.exceptions import DocumentError
 from utils.text_splitter import TextSplitter, SplitStrategy

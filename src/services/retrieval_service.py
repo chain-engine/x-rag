@@ -8,8 +8,8 @@ Retrieval Service Module
 
 from typing import Any
 
-from service.base_service import BaseService
-from repository.vector_repository import VectorRepository
+from services.base_service import BaseService
+from Repositories.vector_repository import VectorRepository
 from core.logger import logger
 from core.exceptions import RetrievalError
 from infras.embedding.bge_model import CachedBGEEmbeddingModel
