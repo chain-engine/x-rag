@@ -31,7 +31,6 @@ x-rag 是一个**生产级 RAG（检索增强生成）学习和实训项目**，
 ```
 x-rag/
 ├── src/                          # 核心源码
-│   ├── .venv/                    # Python 虚拟环境
 │   ├── api/                      # API接口层
 │   │   ├── router.py             # 路由注册
 │   │   └── v1/                   # API v1版本

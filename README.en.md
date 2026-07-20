@@ -31,7 +31,6 @@ x-rag is a **production-grade RAG (Retrieval-Augmented Generation) learning and 
 ```
 x-rag/
 ├── src/                          # Core source code
-│   ├── .venv/                    # Python virtual environment
 │   ├── api/                      # API interface layer
 │   │   ├── router.py             # Route registration
 │   │   └── v1/                   # API v1

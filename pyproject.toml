@@ -73,7 +73,6 @@ extend-exclude = '''
   | \.mypy_cache
   | \.tox
   | \.venv
-  | src/\.venv
   | build
   | dist
 )/
