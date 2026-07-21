@@ -3,10 +3,10 @@
 """
 Utils Package
 
-工具模块，包含文本处理、相似度计算等功能
+Utility modules for text processing, similarity calculation
 """
 
-from utils.text_splitter import (
+from .text_splitter import (
     TextSplitter,
     CharacterSplitter,
     WordSplitter,
@@ -17,14 +17,14 @@ from utils.text_splitter import (
     SplitStrategy,
     create_splitter,
 )
-from utils.similarity import (
+from .similarity import (
     SimilarityCalculator,
     DistanceType,
     MetadataFilter,
     MMRReranker,
     compute_top_k_similar,
 )
-from utils.embedding import (
+from .embedding import (
     encode_texts,
     encode_text,
 )

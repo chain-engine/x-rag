@@ -12,6 +12,7 @@ import os
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 import hashlib
+import threading
 from typing import Optional
 from sentence_transformers import SentenceTransformer
 
@@ -98,7 +99,7 @@ class BGEEmbeddingModel(EmbeddingModelBase):
 
 
 class CachedBGEEmbeddingModel(BGEEmbeddingModel):
-    """带缓存的BGE嵌入模型"""
+    """带缓存的BGE嵌入模型（线程安全）"""
 
     def __init__(
         self,
@@ -110,9 +111,10 @@ class CachedBGEEmbeddingModel(BGEEmbeddingModel):
         super().__init__(model_name, device, batch_size)
         self._cache_size = cache_size
         self._cache: dict[str, list[float]] = {}
+        self._cache_lock = threading.RLock()
 
     def encode(self, texts: list[str], normalize: bool = True) -> list[list[float]]:
-        """编码文本列表为向量（带缓存）"""
+        """编码文本列表为向量（带缓存，线程安全）"""
         if not texts:
             return []
 
@@ -120,40 +122,43 @@ class CachedBGEEmbeddingModel(BGEEmbeddingModel):
         uncached_texts = []
         uncached_indices = []
 
-        for idx, text in enumerate(texts):
-            cache_key = self._get_cache_key(text, normalize)
-            if cache_key in self._cache:
-                embeddings.append(self._cache[cache_key])
-            else:
-                embeddings.append(None)
-                uncached_texts.append(text)
-                uncached_indices.append(idx)
+        with self._cache_lock:
+            for idx, text in enumerate(texts):
+                cache_key = self._get_cache_key(text, normalize)
+                if cache_key in self._cache:
+                    embeddings.append(self._cache[cache_key])
+                else:
+                    embeddings.append(None)
+                    uncached_texts.append(text)
+                    uncached_indices.append(idx)
 
         if uncached_texts:
             logger.info(f"Encoding {len(uncached_texts)} uncached texts")
             new_embeddings = super().encode(uncached_texts, normalize)
 
-            for text, embedding in zip(uncached_texts, new_embeddings):
-                cache_key = self._get_cache_key(text, normalize)
-                self._add_to_cache(cache_key, embedding)
+            with self._cache_lock:
+                for text, embedding in zip(uncached_texts, new_embeddings):
+                    cache_key = self._get_cache_key(text, normalize)
+                    self._add_to_cache(cache_key, embedding)
 
-            for idx, embedding in zip(uncached_indices, new_embeddings):
-                embeddings[idx] = embedding
+                for idx, embedding in zip(uncached_indices, new_embeddings):
+                    embeddings[idx] = embedding
 
         return embeddings
 
     def clear_cache(self) -> None:
         """清空缓存"""
-        self._cache.clear()
-        logger.debug("Cleared embedding cache")
+        with self._cache_lock:
+            self._cache.clear()
+            logger.debug("Cleared embedding cache")
 
     def _get_cache_key(self, text: str, normalize: bool) -> str:
-        """获取缓存键"""
-        text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
+        """获取缓存键（使用SHA256）"""
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
         return f"{self._model_name}:{normalize}:{text_hash}"
 
     def _add_to_cache(self, key: str, value: list[float]) -> None:
-        """添加到缓存"""
+        """添加到缓存（LRU淘汰）"""
         if len(self._cache) >= self._cache_size:
             oldest_key = next(iter(self._cache))
             del self._cache[oldest_key]

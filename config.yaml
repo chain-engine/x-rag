@@ -22,7 +22,7 @@ logging:
 # ====================================
 embedding:
   model: BAAI/bge-m3
-  device: cuda
+  device: cpu
   batch_size: 32
   cache_size: 1000
   normalize: true
@@ -64,8 +64,8 @@ retrieval:
 # 生成配置
 # ====================================
 generation:
-  provider: openai
-  model: gpt-3.5-turbo
+  provider: deepseek
+  model: deepseek-chat
   temperature: 0.7
   max_tokens: 2000
   timeout: 30
@@ -93,7 +93,8 @@ rate_limit:
 cors:
   enabled: true
   allow_origins:
-    - "*"
+    - "http://localhost:3000"
+    - "http://localhost:8080"
   allow_methods:
     - GET
     - POST

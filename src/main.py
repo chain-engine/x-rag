@@ -25,8 +25,8 @@ from core.config import settings
 from core.middleware import setup_middleware
 from core.exceptions import AppException
 from core.services import AppServices
-from Repositories.vector_repository import VectorRepository
-from Repositories.document_repository import DocumentRepository
+from repositories.vector_repository import VectorRepository
+from repositories.document_repository import DocumentRepository
 from services.indexing_service import IndexingService
 from services.retrieval_service import RetrievalService
 from services.generation_service import GenerationService

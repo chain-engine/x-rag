@@ -12,11 +12,11 @@ import tempfile
 import shutil
 from pathlib import Path
 
-from src.repository.document_repository import DocumentRepository
-from src.repository.vector_repository import VectorRepository
-from src.service.indexing_service import IndexingService
-from src.service.retrieval_service import RetrievalService
-from src.service.generation_service import GenerationService
+from src.repositories.document_repository import DocumentRepository
+from src.repositories.vector_repository import VectorRepository
+from src.services.indexing_service import IndexingService
+from src.services.retrieval_service import RetrievalService
+from src.services.generation_service import GenerationService
 from src.utils.text_splitter import TextSplitter, create_splitter, SplitStrategy
 
 

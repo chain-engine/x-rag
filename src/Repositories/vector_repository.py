@@ -3,12 +3,12 @@
 """
 Vector Repository Module
 
-向量仓库，封装向量存储的数据访问操作
+Vector store repository
 """
 
 from typing import Any
 
-from Repositories.base_repository import BaseRepository
+from .base_repository import BaseRepository
 from infras.vector_store.chroma import ChromaVectorStore
 from core.logger import logger
 

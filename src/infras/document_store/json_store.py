@@ -69,9 +69,15 @@ class JSONDocumentStore(DocumentStoreBase):
 
             with open(file_path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load document {document_id}: {e}")
-            return None
+        except json.JSONDecodeError as e:
+            logger.error(f"文档 {document_id} 解析失败：无效的JSON格式: {e}")
+            raise DocumentError(f"文档 {document_id} 格式无效: {e}") from e
+        except PermissionError as e:
+            logger.error(f"读取文档 {document_id} 权限不足: {e}")
+            raise DocumentError(f"读取文档 {document_id} 权限不足") from e
+        except OSError as e:
+            logger.error(f"加载文档 {document_id} 失败: {e}")
+            raise DocumentError(f"加载文档 {document_id} 失败: {e}") from e
 
     def delete(self, document_id: str) -> None:
         """删除文档文件"""
@@ -91,18 +97,29 @@ class JSONDocumentStore(DocumentStoreBase):
         self._ensure_initialized()
 
         documents = []
+        failed_files = []
         try:
             for file_path in self.storage_path.glob("*.json"):
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
                         documents.append(json.load(f))
-                except Exception as e:
-                    logger.warning(f"Failed to load document {file_path}: {e}")
-                    continue
+                except json.JSONDecodeError as e:
+                    logger.warning(f"跳过无效的JSON文件 {file_path}: {e}")
+                    failed_files.append(str(file_path))
+                except PermissionError:
+                    logger.warning(f"跳过无权限访问的文件 {file_path}")
+                    failed_files.append(str(file_path))
+                except OSError as e:
+                    logger.warning(f"跳过无法读取的文件 {file_path}: {e}")
+                    failed_files.append(str(file_path))
+
+            if failed_files:
+                logger.warning(f"共跳过 {len(failed_files)} 个不可读文件: {failed_files[:5]}")
+
             return documents
         except Exception as e:
-            logger.error(f"Failed to list documents: {e}")
-            return []
+            logger.error(f"列出文档失败: {e}")
+            raise DocumentError(f"列出文档失败: {e}") from e
 
     def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""

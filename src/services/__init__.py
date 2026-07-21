@@ -3,13 +3,13 @@
 """
 Services Package
 
-业务逻辑层
+Business logic layer
 """
 
-from services.base_service import BaseService
-from services.indexing_service import IndexingService
-from services.retrieval_service import RetrievalService
-from services.generation_service import GenerationService
+from .base_service import BaseService
+from .indexing_service import IndexingService
+from .retrieval_service import RetrievalService
+from .generation_service import GenerationService
 
 __all__ = [
     "BaseService",

@@ -3,12 +3,12 @@
 """
 Document Repository Module
 
-文档仓库，封装文档存储的数据访问操作
+Document repository
 """
 
 from typing import Any
 
-from Repositories.base_repository import BaseRepository
+from .base_repository import BaseRepository
 from infras.document_store.json_store import JSONDocumentStore
 from core.logger import logger
 

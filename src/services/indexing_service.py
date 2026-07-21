@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from services.base_service import BaseService
-from Repositories.vector_repository import VectorRepository
-from Repositories.document_repository import DocumentRepository
+from repositories.vector_repository import VectorRepository
+from repositories.document_repository import DocumentRepository
 from core.logger import logger
 from core.exceptions import DocumentError
 from utils.text_splitter import ParagraphSplitter
@@ -299,9 +299,26 @@ class IndexingService(BaseService):
         self,
         status: str | None = None,
         file_type: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """列出文档"""
+        skip: int = 0,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """列出文档（支持分页）
+
+        参数:
+            status: 按文档状态筛选
+            file_type: 按文件类型筛选
+            skip: 跳过的文档数量
+            limit: 返回的最大文档数量
+
+        返回:
+            包含文档列表和分页信息的字典
+        """
         self._check_initialized()
+
+        if skip < 0:
+            skip = 0
+        if limit is not None and limit < 1:
+            limit = None
 
         documents = self._doc_repo.list_all()
 
@@ -310,7 +327,22 @@ class IndexingService(BaseService):
         if file_type:
             documents = [doc for doc in documents if doc.get("file_type") == file_type]
 
-        return documents
+        total = len(documents)
+
+        if skip > 0 and skip < len(documents):
+            documents = documents[skip:]
+        elif skip >= len(documents):
+            documents = []
+
+        if limit is not None and limit > 0:
+            documents = documents[:limit]
+
+        return {
+            "documents": documents,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
 
     def _check_initialized(self) -> None:
         """检查服务是否已初始化"""

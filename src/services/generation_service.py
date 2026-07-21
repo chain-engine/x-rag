@@ -50,7 +50,7 @@ class GenerationService(BaseService):
         logger.info("GenerationService shut down")
 
     def get_stats(self) -> dict[str, Any]:
-        """获取统计信息"""
+        """获取服务统计信息"""
         return {
             "type": "generation",
             "provider": self._default_provider,
@@ -73,10 +73,8 @@ class GenerationService(BaseService):
         max_tokens = max_tokens or self._default_max_tokens
 
         try:
-            # 构建完整的提示
             full_prompt = self._build_prompt(prompt, context or [])
 
-            # 调用LLM API
             if provider == LLM_PROVIDER_OPENAI:
                 return await self._call_openai(full_prompt, temperature, max_tokens)
             elif provider == LLM_PROVIDER_DEEPSEEK:
@@ -91,7 +89,7 @@ class GenerationService(BaseService):
             raise GenerationError(f"Generation failed: {e}") from e
 
     def _build_prompt(self, prompt: str, context: list[str]) -> str:
-        """构建完整的提示"""
+        """构建带有上下文的完整提示"""
         if not context:
             return prompt
 

@@ -163,8 +163,8 @@ class ChromaVectorStore(VectorStoreBase):
         try:
             return self._collection.count()
         except Exception as e:
-            logger.error(f"Failed to get count: {e}")
-            return 0
+            logger.error(f"获取向量总数失败: {e}")
+            raise VectorStoreError(f"获取向量总数失败: {e}") from e
 
     def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""

@@ -335,46 +335,163 @@ class ParagraphSplitter(TextSplitter):
 
 
 class SemanticSplitter(TextSplitter):
-    """语义级切分器（基于句子）"""
+    """基于embedding相似度的语义级切分器
 
-    def _split(self, text: str) -> List[str]:
-        """按语义切分文本
+    使用句子embedding来确定语义边界。
+    相似度高的句子会被分到同一组，而相似度低的句子会触发新的分块边界。
+    """
+
+    def __init__(
+        self,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
+        chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+        separators: list[str] | None = None,
+        similarity_threshold: float = 0.5,
+        embedding_model: Any | None = None,
+    ):
+        super().__init__(chunk_size, chunk_overlap, separators)
+        self.similarity_threshold = similarity_threshold
+        self._embedding_model = embedding_model
+
+    def _get_embedding_model(self) -> Any | None:
+        """延迟加载或初始化embedding模型"""
+        if self._embedding_model is None:
+            try:
+                from infras.embedding.bge_model import CachedBGEEmbeddingModel
+                self._embedding_model = CachedBGEEmbeddingModel()
+                logger.debug("SemanticSplitter已加载embedding模型")
+            except Exception as e:
+                logger.warning(f"加载embedding模型失败: {e}")
+                return None
+        return self._embedding_model
+
+    def _split(self, text: str) -> list[str]:
+        """基于语义相似度切分文本
+
+        使用句子embedding来识别语义边界。
+        当连续句子之间的相似度低于阈值时，开始新的分块。
 
         Args:
             text: 待切分的文本
 
         Returns:
-            List[str]: 切分后的文本列表
+            List[str]: 语义连贯的文本块列表
         """
-        # 先按句子切分
-        sentence_splitter = SentenceSplitter(
-            chunk_size=self.chunk_size,
-            chunk_overlap=0
-        )
-        sentences = sentence_splitter._split(text)
+        sentences = self._split_into_sentences(text)
 
-        # 合并句子形成语义块
+        if not sentences:
+            return []
+
+        if len(sentences) == 1:
+            return sentences
+
+        model = self._get_embedding_model()
+
+        if model is None:
+            logger.warning("无法使用embedding模型，回退到基于长度的切分")
+            return self._merge_by_length(sentences)
+
+        chunks = self._merge_by_similarity(sentences, model)
+
+        return chunks
+
+    def _split_into_sentences(self, text: str) -> list[str]:
+        """使用正则表达式将文本切分为句子"""
+        sentences = re.split(r'([。！？\n]|\n\n)', text)
+        merged_sentences = []
+        current = ""
+
+        for i, part in enumerate(sentences):
+            if i % 2 == 0:
+                current += part
+            else:
+                current += part
+                if current.strip():
+                    merged_sentences.append(current)
+                current = ""
+
+        if current.strip():
+            merged_sentences.append(current)
+
+        return [s.strip() for s in merged_sentences if s.strip()]
+
+    def _merge_by_similarity(self, sentences: list[str], model: Any) -> list[str]:
+        """基于embedding相似度合并句子为块"""
+        embeddings = model.encode(sentences, normalize=True)
         chunks = []
-        current_chunk = ""
+        current_chunk = [sentences[0]]
+        current_embedding = embeddings[0]
+
+        for i in range(1, len(sentences)):
+            sentence = sentences[i]
+            embedding = embeddings[i]
+
+            similarity = self._cosine_similarity(current_embedding, embedding)
+
+            combined_text = "".join(current_chunk)
+            if (similarity >= self.similarity_threshold and
+                    len(combined_text) + len(sentence) <= self.chunk_size):
+                current_chunk.append(sentence)
+                current_embedding = self._average_embeddings(
+                    [current_embedding, embedding],
+                    [len(current_chunk) - 1, 1]
+                )
+            else:
+                chunks.append("".join(current_chunk))
+                current_chunk = [sentence]
+                current_embedding = embedding
+
+        if current_chunk:
+            chunks.append("".join(current_chunk))
+
+        return chunks
+
+    def _merge_by_length(self, sentences: list[str]) -> list[str]:
+        """回退方案：基于长度合并句子，不做语义分析"""
+        chunks = []
+        current_chunk = []
         current_length = 0
 
         for sentence in sentences:
             sentence_length = len(sentence)
             if current_length + sentence_length <= self.chunk_size:
-                current_chunk += sentence
+                current_chunk.append(sentence)
                 current_length += sentence_length
             else:
                 if current_chunk:
-                    chunks.append(current_chunk)
-                    current_chunk = ""
-                    current_length = 0
-                current_chunk += sentence
-                current_length += sentence_length
+                    chunks.append("".join(current_chunk))
+                current_chunk = [sentence]
+                current_length = sentence_length
 
         if current_chunk:
-            chunks.append(current_chunk)
+            chunks.append("".join(current_chunk))
 
         return chunks
+
+    def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
+        """计算两个向量的余弦相似度"""
+        dot = sum(a * b for a, b in zip(vec1, vec2))
+        norm1 = sum(a * a for a in vec1) ** 0.5
+        norm2 = sum(a * a for a in vec2) ** 0.5
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        return dot / (norm1 * norm2)
+
+    def _average_embeddings(
+        self,
+        embeddings: list[list[float]],
+        weights: list[int]
+    ) -> list[float]:
+        """计算embedding的加权平均"""
+        total_weight = sum(weights)
+        if total_weight == 0:
+            return embeddings[0]
+
+        result = [0.0] * len(embeddings[0])
+        for emb, weight in zip(embeddings, weights):
+            for i, val in enumerate(emb):
+                result[i] += val * weight / total_weight
+        return result
 
 
 def create_splitter(

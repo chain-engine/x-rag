@@ -94,7 +94,7 @@ async def upload_document(
 @router.get(
     "/documents",
     summary="文档列表",
-    description="获取文档列表",
+    description="获取文档列表（支持分页）",
     tags=["文档"],
 )
 async def list_documents(
@@ -104,21 +104,30 @@ async def list_documents(
     file_type: str | None = None,
     indexing_service: IndexingService = Depends(get_indexing_service),
 ) -> dict[str, Any]:
-    """文档列表接口"""
+    """文档列表接口（支持分页）"""
     try:
-        documents = indexing_service.list_documents(status=status, file_type=file_type)
+        if page < 1:
+            page = 1
+        if page_size < 1:
+            page_size = 20
+        if page_size > 100:
+            page_size = 100
 
-        # 分页
-        total = len(documents)
+        skip = (page - 1) * page_size
+
+        result = indexing_service.list_documents(
+            status=status,
+            file_type=file_type,
+            skip=skip,
+            limit=page_size,
+        )
+
+        documents = result["documents"]
+        total = result["total"]
         total_pages = (total + page_size - 1) // page_size
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
 
-        paginated_docs = documents[start_idx:end_idx]
-
-        # 转换格式
         doc_infos = []
-        for doc in paginated_docs:
+        for doc in documents:
             doc_infos.append({
                 "document_id": doc.get("document_id"),
                 "file_name": doc.get("file_name"),
@@ -144,7 +153,7 @@ async def list_documents(
         }
 
     except Exception as e:
-        logger.error(f"List documents error: {e}")
+        logger.error(f"列出文档失败: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -163,7 +172,7 @@ async def get_document(
         document = indexing_service.get_document(document_id)
 
         if document.get("status") == "not_found":
-            raise HTTPException(status_code=404, detail="Document not found")
+            raise HTTPException(status_code=404, detail="文档不存在")
 
         return {
             "code": HTTP_OK,
@@ -199,7 +208,7 @@ async def delete_document(
                 "document_id": result["document_id"],
                 "status": result["status"],
                 "vector_count": result["vector_count"],
-                "message": "Document deleted successfully",
+                "message": "文档删除成功",
             },
         }
 
@@ -225,7 +234,7 @@ async def get_document_status(
         status = indexing_service.get_document_status(document_id)
 
         if status.get("status") == "not_found":
-            raise HTTPException(status_code=404, detail="Document not found")
+            raise HTTPException(status_code=404, detail="文档不存在")
 
         return {
             "code": HTTP_OK,
