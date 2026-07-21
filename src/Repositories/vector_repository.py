@@ -65,7 +65,38 @@ class VectorRepository(BaseRepository):
         top_k: int = 5,
         where: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """搜索向量"""
+        """搜索向量
+
+        Args:
+            query_embedding: 查询向量，形状为 [embedding_dim]，如 BGE 模型输出 1024 维向量
+            top_k: 返回的最相似结果数量，默认 5
+            where: 元数据过滤条件，支持 Chroma 的 where 子句格式
+
+        Returns:
+            结果列表，每个元素包含:
+                - id (str): 向量 ID
+                - document (str): 关联的文本内容
+                - metadata (dict): 元数据（如 document_id、chunk_index 等）
+                - score (float): 相似度分数（0-1，1 表示完全相似）
+
+        Examples:
+            # 基础搜索
+            results = repo.search(
+                query_embedding=[0.1, 0.2, ...],  # 1024 维向量
+                top_k=5
+            )
+
+            # 带过滤条件的搜索
+            results = repo.search(
+                query_embedding=[0.1, 0.2, ...],
+                top_k=10,
+                where={"document_id": "doc_001"}  # 只返回该文档的 chunks
+            )
+
+            # 处理返回结果
+            for r in results:
+                print(f"Score: {r['score']:.4f}, Doc: {r['document'][:50]}...")
+        """
         self._ensure_initialized()
         results = self._store.search(
             query_embedding=query_embedding,

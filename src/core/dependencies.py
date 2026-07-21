@@ -10,6 +10,7 @@ from fastapi import Request
 
 from services.indexing_service import IndexingService
 from services.retrieval_service import RetrievalService
+from services.augmentation_service import AugmentationService
 from services.generation_service import GenerationService
 
 
@@ -21,6 +22,11 @@ def get_indexing_service(request: Request) -> IndexingService:
 def get_retrieval_service(request: Request) -> RetrievalService:
     """依赖注入：获取检索服务"""
     return request.app.state.services.retrieval_service
+
+
+def get_augmentation_service(request: Request) -> AugmentationService:
+    """依赖注入：获取增强服务"""
+    return request.app.state.services.augmentation_service
 
 
 def get_generation_service(request: Request) -> GenerationService:

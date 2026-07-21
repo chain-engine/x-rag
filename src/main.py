@@ -29,6 +29,7 @@ from repositories.vector_repository import VectorRepository
 from repositories.document_repository import DocumentRepository
 from services.indexing_service import IndexingService
 from services.retrieval_service import RetrievalService
+from services.augmentation_service import AugmentationService
 from services.generation_service import GenerationService
 from api.router import api_router
 
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
             chunk_overlap=settings.TEXT_SPLITTER_CHUNK_OVERLAP,
         )
         retrieval_service = RetrievalService(vector_repo=vector_repo)
+        augmentation_service = AugmentationService()
         generation_service = GenerationService(
             default_provider=settings.GENERATION_PROVIDER,
             default_model=settings.GENERATION_MODEL,
@@ -67,6 +69,7 @@ async def lifespan(app: FastAPI):
         services = AppServices(
             indexing_service=indexing_service,
             retrieval_service=retrieval_service,
+            augmentation_service=augmentation_service,
             generation_service=generation_service,
         )
         services.initialize()

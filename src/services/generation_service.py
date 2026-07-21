@@ -60,12 +60,14 @@ class GenerationService(BaseService):
     async def generate(
         self,
         prompt: str,
-        context: list[str] | None = None,
         provider: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> dict[str, Any]:
-        """生成文本"""
+        """生成文本
+
+        注意: prompt应为增强后的完整prompt，增强逻辑已移至AugmentationService
+        """
         self._check_initialized()
 
         provider = provider or self._default_provider
@@ -73,12 +75,10 @@ class GenerationService(BaseService):
         max_tokens = max_tokens or self._default_max_tokens
 
         try:
-            full_prompt = self._build_prompt(prompt, context or [])
-
             if provider == LLM_PROVIDER_OPENAI:
-                return await self._call_openai(full_prompt, temperature, max_tokens)
+                return await self._call_openai(prompt, temperature, max_tokens)
             elif provider == LLM_PROVIDER_DEEPSEEK:
-                return await self._call_deepseek(full_prompt, temperature, max_tokens)
+                return await self._call_deepseek(prompt, temperature, max_tokens)
             else:
                 raise GenerationError(f"Unsupported provider: {provider}")
 
@@ -87,21 +87,6 @@ class GenerationService(BaseService):
         except Exception as e:
             logger.error(f"Generation failed: {e}")
             raise GenerationError(f"Generation failed: {e}") from e
-
-    def _build_prompt(self, prompt: str, context: list[str]) -> str:
-        """构建带有上下文的完整提示"""
-        if not context:
-            return prompt
-
-        context_text = "\n\n".join([f"[文档{i+1}]\n{ctx}" for i, ctx in enumerate(context)])
-        return f"""基于以下参考资料回答问题。
-
-参考资料：
-{context_text}
-
-问题：{prompt}
-
-请根据参考资料回答，如果资料中没有相关信息，请说明。"""
 
     async def _call_openai(
         self,
@@ -180,7 +165,6 @@ class GenerationService(BaseService):
     async def stream_generate(
         self,
         prompt: str,
-        context: list[str] | None = None,
         provider: str | None = None,
         temperature: float | None = None,
     ) -> AsyncIterator[str]:

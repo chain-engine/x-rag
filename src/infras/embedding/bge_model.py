@@ -54,7 +54,25 @@ class BGEEmbeddingModel(EmbeddingModelBase):
         return self._model_name
 
     def encode(self, texts: list[str], normalize: bool = True) -> list[list[float]]:
-        """编码文本列表为向量"""
+        """编码文本列表为向量
+
+        将人类可读的文本转换为数值向量表示。
+
+        Args:
+            texts: 待编码的文本列表
+                示例: ["今天天气很好", "今天下雨了"]
+            normalize: 是否归一化向量（默认True）
+                - True: 向量长度归一化为1，便于计算余弦相似度（推荐）
+                - False: 保留原始向量长度
+
+        Returns:
+            二维浮点数列表，每个子列表是一个文本的向量
+
+        Example:
+            >>> model = BGEEmbeddingModel()
+            >>> vectors = model.encode(["苹果", "香蕉"])
+            >>> # 返回: [[0.1, -0.2, ...], [0.5, 0.1, ...]]
+        """
         self._ensure_loaded()
 
         if not texts:
@@ -114,7 +132,35 @@ class CachedBGEEmbeddingModel(BGEEmbeddingModel):
         self._cache_lock = threading.RLock()
 
     def encode(self, texts: list[str], normalize: bool = True) -> list[list[float]]:
-        """编码文本列表为向量（带缓存，线程安全）"""
+        """编码文本列表为向量（带缓存，线程安全）
+
+        将人类可读的文本转换为计算机可处理的数值向量。
+        相似的文本会得到相似的向量，可用于语义搜索、相似度计算等场景。
+
+        Args:
+            texts: 待编码的文本列表
+                示例: ["今天天气很好", "今天下雨了", "我喜欢吃苹果"]
+            normalize: 是否归一化向量
+                - True: 向量长度归一化为1，便于计算余弦相似度（推荐）
+                - False: 保留原始向量长度
+
+        Returns:
+            二维浮点数列表，每个子列表对应一个文本的向量
+
+        Example:
+            >>> vectors = model.encode(["苹果", "香蕉"])
+            >>> # 返回:
+            >>> # [
+            >>> #   [0.123, -0.456, 0.789, ...],  # "苹果"的向量
+            >>> #   [0.234, -0.567, 0.890, ...]   # "香蕉"的向量
+            >>> # ]
+            >>> len(vectors)      # 2 (2个文本)
+            >>> len(vectors[0])  # 1024 (每向量1024维)
+
+        Note:
+            - "苹果" 和 "香蕉" 语义相似，向量距离近
+            - "苹果" 和 "我喜欢吃水果" 语义不同，向量距离远
+        """
         if not texts:
             return []
 
@@ -126,7 +172,7 @@ class CachedBGEEmbeddingModel(BGEEmbeddingModel):
             for idx, text in enumerate(texts):
                 cache_key = self._get_cache_key(text, normalize)
                 if cache_key in self._cache:
-                    embeddings.append(self._cache[cache_key])
+                    embeddings.append(self._cache[cache_key])  # 命中缓存，直接使用
                 else:
                     embeddings.append(None)
                     uncached_texts.append(text)
@@ -134,7 +180,7 @@ class CachedBGEEmbeddingModel(BGEEmbeddingModel):
 
         if uncached_texts:
             logger.info(f"Encoding {len(uncached_texts)} uncached texts")
-            new_embeddings = super().encode(uncached_texts, normalize)
+            new_embeddings = super().encode(uncached_texts, normalize)  # 调用父类方法批量编码
 
             with self._cache_lock:
                 for text, embedding in zip(uncached_texts, new_embeddings):

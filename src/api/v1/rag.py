@@ -17,8 +17,9 @@ from schemas.rag import (
 )
 from core.logger import logger
 from core.exceptions import RetrievalError, GenerationError, ConfigurationError
-from core.dependencies import get_retrieval_service, get_generation_service
+from core.dependencies import get_retrieval_service, get_augmentation_service, get_generation_service
 from services.retrieval_service import RetrievalService
+from services.augmentation_service import AugmentationService
 from services.generation_service import GenerationService
 from infras.embedding.bge_model import CachedBGEEmbeddingModel
 from constants.common import HTTP_OK, MSG_SUCCESS
@@ -35,6 +36,7 @@ router = APIRouter()
 async def rag_query(
     request: RAGQueryRequest,
     retrieval_service: RetrievalService = Depends(get_retrieval_service),
+    augmentation_service: AugmentationService = Depends(get_augmentation_service),
     generation_service: GenerationService = Depends(get_generation_service),
 ) -> dict[str, Any]:
     """RAG查询接口"""
@@ -64,38 +66,38 @@ async def rag_query(
                 },
             }
 
-        # 提取上下文
-        context = [doc["text"] for doc in retrieved_docs]
+        # 增强：构建带有上下文的prompt
+        augmented = augmentation_service.augment(
+            query=request.query,
+            retrieved_docs=retrieved_docs,
+        )
 
         # 生成答案
         provider = request.provider or generation_service._default_provider
         generation_result = await generation_service.generate(
-            prompt=request.query,
-            context=context,
+            prompt=augmented["full_prompt"],
             provider=provider,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )
 
         # 构建响应
-        retrieved_docs_response = [
-            RetrievedDocument(
-                chunk_id=doc["id"],
-                document_id=doc["metadata"].get("document_id", ""),
-                text=doc["text"],
-                score=doc["score"],
-                metadata=doc["metadata"],
-            )
-            for doc in retrieved_docs
-        ]
-
         return {
             "code": HTTP_OK,
             "message": MSG_SUCCESS,
             "data": {
                 "query": request.query,
                 "answer": generation_result["text"],
-                "retrieved_docs": [doc.model_dump() for doc in retrieved_docs_response],
+                "retrieved_docs": [
+                    RetrievedDocument(
+                        chunk_id=doc["id"],
+                        document_id=doc["metadata"].get("document_id", ""),
+                        text=doc["text"],
+                        score=doc["score"],
+                        metadata=doc["metadata"],
+                    ).model_dump()
+                    for doc in retrieved_docs
+                ],
                 "provider": generation_result["provider"],
                 "model": generation_result["model"],
                 "tokens_used": generation_result["tokens_used"],

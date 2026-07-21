@@ -27,60 +27,72 @@ class RAGQueryRequest(BaseModel):
         ...,
         min_length=1,
         max_length=2000,
-        description="查询内容",
+        description="用户查询内容，支持中英文",
         examples=["什么是RAG？"],
     )
     top_k: int = Field(
         default=DEFAULT_TOP_K,
         ge=1,
         le=20,
-        description="返回文档数量",
+        description="返回相关文档数量，默认5",
+        examples=[5],
     )
     similarity_threshold: float = Field(
         default=DEFAULT_SIMILARITY_THRESHOLD,
         ge=0.0,
         le=1.0,
-        description="相似度阈值",
+        description="相似度阈值，低于该值的文档被过滤，默认0.5",
+        examples=[0.7],
     )
     use_mmr: bool = Field(
         default=False,
-        description="是否使用MMR算法",
+        description="是否使用MMR算法增加结果多样性",
+        examples=[False],
     )
     mmr_lambda: float = Field(
         default=DEFAULT_MMR_LAMBDA,
         ge=0.0,
         le=1.0,
-        description="MMR lambda参数",
+        description="MMR参数，0.0=多样性优先，1.0=相关性优先",
+        examples=[0.5],
     )
     metadata_filter: dict[str, Any] | None = Field(
         default=None,
-        description="元数据过滤条件",
+        description="元数据过滤条件，如 {\"file_type\": \"pdf\"}",
+        examples=[None],
     )
     provider: str | None = Field(
         default=None,
-        description="LLM提供商",
+        description="LLM提供商，为空使用默认",
+        examples=[None],
     )
     temperature: float = Field(
         default=DEFAULT_TEMPERATURE,
         ge=0.0,
         le=2.0,
-        description="温度参数",
+        description="生成温度，0.0=确定性，2.0=创造性",
+        examples=[0.3],
     )
     max_tokens: int = Field(
         default=DEFAULT_MAX_TOKENS,
         ge=1,
         le=8000,
-        description="最大token数",
+        description="生成回答的最大token数",
+        examples=[2000],
     )
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "query": "什么是RAG？",
+                "query": "什么是RAG技术？它解决了什么问题？",
                 "top_k": 5,
                 "similarity_threshold": 0.7,
                 "use_mmr": False,
                 "mmr_lambda": 0.5,
+                "metadata_filter": {"file_type": "pdf"},
+                "provider": None,
+                "temperature": 0.3,
+                "max_tokens": 2000,
             }
         },
     )
