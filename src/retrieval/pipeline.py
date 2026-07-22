@@ -27,6 +27,8 @@ from constants.rag import (
 )
 from infras.embedding.base import EmbeddingModelBase
 from llms.providers import BaseLLMProvider
+from utils.filters import MetadataFilterEngine
+from utils.similarity import SimilaritySearchEngine, DistanceType
 
 
 class RetrievalPipeline:
