@@ -18,7 +18,7 @@ from repositories.document_repository import DocumentRepository
 from core.logger import logger
 from core.exceptions import DocumentError
 from chunking import get_chunking_provider
-from infras.embedding.bge_model import CachedBGEEmbeddingModel
+from infras.embedding.bge_model import BGEEmbeddingModel
 from constants.rag import (
     DOC_STATUS_PENDING,
     DOC_STATUS_PROCESSING,
@@ -44,7 +44,7 @@ class DocumentService(BaseService):
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
         self._initialized = False
-        self._embedding_model: CachedBGEEmbeddingModel | None = None
+        self._embedding_model: BGEEmbeddingModel | None = None
         self._chunking_provider = get_chunking_provider(
             provider_name=chunking_provider,
             chunk_size=chunk_size,
@@ -80,11 +80,11 @@ class DocumentService(BaseService):
             "document_stats": self._doc_repo.get_stats(),
         }
 
-    def _get_embedding_model(self) -> CachedBGEEmbeddingModel:
+    def _get_embedding_model(self) -> BGEEmbeddingModel:
         """延迟获取 embedding model"""
         if self._embedding_model is None:
             logger.info("Loading embedding model on first use...")
-            self._embedding_model = CachedBGEEmbeddingModel()
+            self._embedding_model = BGEEmbeddingModel()
         return self._embedding_model
 
     def _check_initialized(self) -> None:

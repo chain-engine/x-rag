@@ -6,6 +6,7 @@ RAG Constants Module
 RAG核心模块相关的常量
 """
 
+from enum import Enum
 from typing import Final
 
 # ====================================
@@ -53,3 +54,49 @@ DEFAULT_MMR_LAMBDA: Final[float] = 0.5
 # ====================================
 DEFAULT_CHUNK_SIZE: Final[int] = 512
 DEFAULT_CHUNK_OVERLAP: Final[int] = 50
+
+
+# ====================================
+# 距离度量类型枚举
+# ====================================
+class DistanceType(str, Enum):
+    """距离度量类型"""
+    COSINE = DISTANCE_COSINE
+    EUCLIDEAN = DISTANCE_EUCLIDEAN
+    DOT = DISTANCE_DOT
+
+
+# ====================================
+# 排序 Provider 名称常量
+# ====================================
+class RerankingProviderName:
+    """排序 Provider 名称常量"""
+    MMR_RERANKER: Final[str] = "mmr_reranker"
+    RRF_RERANKER: Final[str] = "rrf_reranker"
+    SEMANTIC_RERANKER: Final[str] = "semantic_reranker"
+    SCORE_FILTER: Final[str] = "score_filter"
+
+
+__all__ = [
+    "DOC_STATUS_PENDING",
+    "DOC_STATUS_PROCESSING",
+    "DOC_STATUS_COMPLETED",
+    "DOC_STATUS_FAILED",
+    "DOC_STATUS_DELETED",
+    "DOC_TYPE_TXT",
+    "DOC_TYPE_MD",
+    "DOC_TYPE_PDF",
+    "DOC_TYPE_DOCX",
+    "DOC_TYPE_HTML",
+    "SUPPORTED_DOC_TYPES",
+    "DISTANCE_COSINE",
+    "DISTANCE_EUCLIDEAN",
+    "DISTANCE_DOT",
+    "DEFAULT_TOP_K",
+    "DEFAULT_SIMILARITY_THRESHOLD",
+    "DEFAULT_MMR_LAMBDA",
+    "DEFAULT_CHUNK_SIZE",
+    "DEFAULT_CHUNK_OVERLAP",
+    "DistanceType",
+    "RerankingProviderName",
+]

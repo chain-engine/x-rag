@@ -8,26 +8,50 @@ LLM 提供者模块
 - 阿里云百炼 (Alibaba Cloud)
 """
 
-from abc import ABC, abstractmethod
-from typing import Any, Optional
+from __future__ import annotations
+
+from abc import ABC
+from dataclasses import dataclass, field
+from typing import Any, ClassVar, Optional
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-from core.config import settings
 from core.logger import logger
+from core.config import Settings
+from constants.generation import LLMProviderType
 
 
-class LLMConfig(BaseModel):
-    """LLM 配置模型"""
+@dataclass
+class LLMConfig:
+    """LLM 配置数据类"""
+    api_key: str = ""
+    api_base: str = ""
+    model_name: str = ""
+    temperature: float = 0.0
+    max_tokens: int | None = None
+    timeout: int = 60
 
-    api_key: str = Field(..., description="API 密钥")
-    api_base: str = Field(..., description="API 基础地址")
-    model_name: str = Field(..., description="模型名称")
-    temperature: float = Field(default=0.0, description="温度参数")
-    max_tokens: Optional[int] = Field(default=None, description="最大令牌数")
-    timeout: int = Field(default=60, description="请求超时时间（秒）")
+    def with_overrides(
+        self,
+        *,
+        api_key: str | None = None,
+        api_base: str | None = None,
+        model_name: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: int | None = None,
+    ) -> LLMConfig:
+        """返回带有覆盖值的新配置"""
+        return LLMConfig(
+            api_key=api_key or self.api_key,
+            api_base=api_base or self.api_base,
+            model_name=model_name or self.model_name,
+            temperature=temperature if temperature is not None else self.temperature,
+            max_tokens=max_tokens if max_tokens is not None else self.max_tokens,
+            timeout=timeout if timeout is not None else self.timeout,
+        )
 
 
 class BaseLLMProvider(ABC):
@@ -37,10 +61,11 @@ class BaseLLMProvider(ABC):
     所有 LLM 提供者都需要继承此类并实现 create_chat_model 方法。
     """
 
-    name: str = ""
-    description: str = ""
+    provider_type: ClassVar[LLMProviderType]
+    name: ClassVar[str]
+    description: ClassVar[str]
 
-    def __init__(self, config: Optional[LLMConfig] = None):
+    def __init__(self, config: Optional[LLMConfig] = None) -> None:
         """
         初始化 LLM 提供者
 
@@ -49,38 +74,74 @@ class BaseLLMProvider(ABC):
         """
         self.config = config or self._get_default_config()
         self._chat_model: Optional[BaseChatModel] = None
+        self._config_snapshot: Optional[LLMConfig] = None
 
-    @abstractmethod
-    def _get_default_config(self) -> LLMConfig:
+    @staticmethod
+    def _get_settings() -> Any:
+        """延迟加载 settings 以避免循环导入"""
+        from core.config import settings
+        return settings
+
+    @classmethod
+    def _get_default_config(cls) -> LLMConfig:
         """
-        获取默认配置
+        获取默认配置（子类必须实现）
 
         Returns:
             LLMConfig 配置对象
         """
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
-    def create_chat_model(self, **kwargs) -> BaseChatModel:
+    def create_chat_model(self, **kwargs: Any) -> BaseChatModel:
         """
         创建聊天模型实例
 
+        子类可以重写此方法以自定义模型创建逻辑。
+        默认实现使用通用的 OpenAI 兼容接口。
+
         Args:
-            **kwargs: 额外的模型参数
+            **kwargs: 额外的模型参数，会覆盖配置中的默认值
 
         Returns:
             BaseChatModel 实例
         """
-        pass
+        logger.info(f"[{self.name}] 创建聊天模型: {self.config.model_name}")
+
+        return ChatOpenAI(
+            api_key=self.config.api_key,
+            base_url=self.config.api_base,
+            model=self.config.model_name,
+            temperature=kwargs.get("temperature", self.config.temperature),
+            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
+            timeout=kwargs.get("timeout", self.config.timeout),
+            **kwargs,
+        )
 
     @property
     def chat_model(self) -> BaseChatModel:
-        """获取聊天模型（懒加载）"""
-        if self._chat_model is None:
+        """获取聊天模型（懒加载，检测配置变化自动重建）"""
+        current_config = self.config
+        needs_recreate = (
+            self._chat_model is None
+            or self._config_snapshot is None
+            or self._config_snapshot.api_key != current_config.api_key
+            or self._config_snapshot.api_base != current_config.api_base
+            or self._config_snapshot.model_name != current_config.model_name
+        )
+
+        if needs_recreate:
             self._chat_model = self.create_chat_model()
+            self._config_snapshot = LLMConfig(
+                api_key=current_config.api_key,
+                api_base=current_config.api_base,
+                model_name=current_config.model_name,
+                temperature=current_config.temperature,
+                max_tokens=current_config.max_tokens,
+                timeout=current_config.timeout,
+            )
         return self._chat_model
 
-    def invoke(self, messages: list, **kwargs) -> Any:
+    def invoke(self, messages: list[Any], **kwargs: Any) -> Any:
         """
         调用聊天模型
 
@@ -94,7 +155,7 @@ class BaseLLMProvider(ABC):
         logger.info(f"[{self.name}] 调用 LLM: {len(messages)} 条消息")
         return self.chat_model.invoke(messages, **kwargs)
 
-    def stream(self, messages: list, **kwargs):
+    def stream(self, messages: list[Any], **kwargs: Any):
         """
         流式调用聊天模型
 
@@ -108,7 +169,7 @@ class BaseLLMProvider(ABC):
         logger.info(f"[{self.name}] 流式调用 LLM: {len(messages)} 条消息")
         yield from self.chat_model.stream(messages, **kwargs)
 
-    def bind_tools(self, tools: list, **kwargs) -> BaseChatModel:
+    def bind_tools(self, tools: list[Any], **kwargs: Any) -> BaseChatModel:
         """
         绑定工具到聊天模型
 
@@ -122,7 +183,7 @@ class BaseLLMProvider(ABC):
         logger.info(f"[{self.name}] 绑定 {len(tools)} 个工具")
         return self.chat_model.bind_tools(tools, **kwargs)
 
-    def with_structured_output(self, schema: Any, **kwargs) -> Any:
+    def with_structured_output(self, schema: Any, **kwargs: Any) -> Any:
         """
         配置结构化输出
 
@@ -146,29 +207,19 @@ class DeepSeekProvider(BaseLLMProvider):
     - deepseek-reasoner
     """
 
+    provider_type = LLMProviderType.DEEPSEEK
     name = "deepseek"
     description = "DeepSeek 模型提供者"
 
-    def _get_default_config(self) -> LLMConfig:
+    @classmethod
+    def _get_default_config(cls) -> LLMConfig:
         """获取 DeepSeek 默认配置"""
+        settings = cls._get_settings()
         return LLMConfig(
             api_key=settings.DEEPSEEK_API_KEY,
             api_base=settings.DEEPSEEK_API_BASE,
             model_name=settings.DEEPSEEK_MODEL_NAME,
             temperature=settings.TEMPERATURE,
-        )
-
-    def create_chat_model(self, **kwargs) -> BaseChatModel:
-        """创建 DeepSeek 聊天模型"""
-        logger.info(f"创建 DeepSeek 聊天模型: {self.config.model_name}")
-
-        return ChatOpenAI(
-            api_key=self.config.api_key,
-            base_url=self.config.api_base,
-            model=self.config.model_name,
-            temperature=kwargs.get("temperature", self.config.temperature),
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-            timeout=kwargs.get("timeout", self.config.timeout),
         )
 
 
@@ -182,29 +233,19 @@ class DoubaoProvider(BaseLLMProvider):
     - doubao-lite-32k
     """
 
+    provider_type = LLMProviderType.DOUBAO
     name = "doubao"
     description = "豆包模型提供者（字节跳动）"
 
-    def _get_default_config(self) -> LLMConfig:
+    @classmethod
+    def _get_default_config(cls) -> LLMConfig:
         """获取豆包默认配置"""
+        settings = cls._get_settings()
         return LLMConfig(
             api_key=settings.DOUBAO_API_KEY,
             api_base=settings.DOUBAO_API_BASE,
             model_name=settings.DOUBAO_MODEL_NAME,
             temperature=settings.TEMPERATURE,
-        )
-
-    def create_chat_model(self, **kwargs) -> BaseChatModel:
-        """创建豆包聊天模型"""
-        logger.info(f"创建豆包聊天模型: {self.config.model_name}")
-
-        return ChatOpenAI(
-            api_key=self.config.api_key,
-            base_url=self.config.api_base,
-            model=self.config.model_name,
-            temperature=kwargs.get("temperature", self.config.temperature),
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-            timeout=kwargs.get("timeout", self.config.timeout),
         )
 
 
@@ -219,29 +260,19 @@ class AliyunProvider(BaseLLMProvider):
     - qwen-max-longcontext
     """
 
+    provider_type = LLMProviderType.ALIYUN
     name = "aliyun"
     description = "阿里云百炼模型提供者（通义千问）"
 
-    def _get_default_config(self) -> LLMConfig:
+    @classmethod
+    def _get_default_config(cls) -> LLMConfig:
         """获取阿里云默认配置"""
+        settings = cls._get_settings()
         return LLMConfig(
             api_key=settings.ALIYUN_API_KEY,
             api_base=settings.ALIYUN_API_BASE,
             model_name=settings.ALIYUN_MODEL_NAME,
             temperature=settings.TEMPERATURE,
-        )
-
-    def create_chat_model(self, **kwargs) -> BaseChatModel:
-        """创建阿里云聊天模型"""
-        logger.info(f"创建阿里云聊天模型: {self.config.model_name}")
-
-        return ChatOpenAI(
-            api_key=self.config.api_key,
-            base_url=self.config.api_base,
-            model=self.config.model_name,
-            temperature=kwargs.get("temperature", self.config.temperature),
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-            timeout=kwargs.get("timeout", self.config.timeout),
         )
 
 
@@ -253,29 +284,19 @@ class MimoProvider(BaseLLMProvider):
     - mimo-v2.5-pro
     """
 
+    provider_type = LLMProviderType.MIMO
     name = "mimo"
     description = "小米 Mimo 模型提供者"
 
-    def _get_default_config(self) -> LLMConfig:
+    @classmethod
+    def _get_default_config(cls) -> LLMConfig:
         """获取 Mimo 默认配置"""
+        settings = cls._get_settings()
         return LLMConfig(
             api_key=settings.MIMO_API_KEY,
             api_base=settings.MIMO_API_BASE,
             model_name=settings.MIMO_MODEL_NAME,
             temperature=settings.TEMPERATURE,
-        )
-
-    def create_chat_model(self, **kwargs) -> BaseChatModel:
-        """创建 Mimo 聊天模型"""
-        logger.info(f"创建 Mimo 聊天模型: {self.config.model_name}")
-
-        return ChatOpenAI(
-            api_key=self.config.api_key,
-            base_url=self.config.api_base,
-            model=self.config.model_name,
-            temperature=kwargs.get("temperature", self.config.temperature),
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-            timeout=kwargs.get("timeout", self.config.timeout),
         )
 
 
@@ -286,10 +307,12 @@ class MockProvider(BaseLLMProvider):
     不调用真实的 LLM，返回模拟响应
     """
 
+    provider_type = LLMProviderType.MOCK
     name = "mock"
     description = "模拟模型提供者（用于测试）"
 
-    def _get_default_config(self) -> LLMConfig:
+    @classmethod
+    def _get_default_config(cls) -> LLMConfig:
         """获取模拟配置"""
         return LLMConfig(
             api_key="mock-api-key",
@@ -298,27 +321,18 @@ class MockProvider(BaseLLMProvider):
             temperature=0.0,
         )
 
-    def create_chat_model(self, **kwargs) -> BaseChatModel:
-        """创建模拟聊天模型"""
-        logger.info("创建模拟聊天模型（用于测试）")
-
-        # 使用 OpenAI 兼容的 Mock 模型
-        return ChatOpenAI(
-            api_key=self.config.api_key,
-            base_url=self.config.api_base,
-            model=self.config.model_name,
-            temperature=0.0,
-        )
-
-    def invoke(self, messages: list, **kwargs) -> Any:
+    def invoke(self, messages: list[Any], **kwargs: Any) -> Any:
         """返回模拟响应"""
         from langchain_core.messages import AIMessage
 
-        logger.info(f"[Mock] 返回模拟响应")
+        logger.info("[Mock] 返回模拟响应")
         last_message = messages[-1] if messages else {}
-        content = last_message.get("content", "") if isinstance(last_message, dict) else str(last_message)
+        content = (
+            last_message.get("content", "")
+            if isinstance(last_message, dict)
+            else str(last_message)
+        )
 
-        # 根据消息内容返回不同的模拟响应
         if "天气" in content:
             response = "抱歉，我是模拟模型，无法查询实时天气。请配置真实的 API Key。"
         elif "计算" in content or "+" in content or "-" in content:
@@ -330,12 +344,16 @@ class MockProvider(BaseLLMProvider):
 
 
 # 提供者注册表
-_PROVIDERS: dict[str, type[BaseLLMProvider]] = {
-    "deepseek": DeepSeekProvider,
-    "doubao": DoubaoProvider,
-    "aliyun": AliyunProvider,
-    "mimo": MimoProvider,
-    "mock": MockProvider,
+_PROVIDER_REGISTRY: dict[str, type[BaseLLMProvider]] = {
+    provider_type.value: provider_class
+    for provider_class in [
+        DeepSeekProvider,
+        DoubaoProvider,
+        AliyunProvider,
+        MimoProvider,
+        MockProvider,
+    ]
+    for provider_type in [provider_class.provider_type]
 }
 
 
@@ -355,19 +373,21 @@ def get_llm_provider(provider_name: str, config: Optional[LLMConfig] = None) -> 
     """
     provider_name = provider_name.lower()
 
-    if provider_name not in _PROVIDERS:
-        available = ", ".join(_PROVIDERS.keys())
-        raise ValueError(f"不支持的 LLM 提供者: {provider_name}。支持的提供者: {available}")
+    if provider_name not in _PROVIDER_REGISTRY:
+        available = ", ".join(_PROVIDER_REGISTRY.keys())
+        raise ValueError(
+            f"不支持的 LLM 提供者: {provider_name}。支持的提供者: {available}"
+        )
 
     logger.info(f"获取 LLM 提供者: {provider_name}")
-    return _PROVIDERS[provider_name](config)
+    return _PROVIDER_REGISTRY[provider_name](config)
 
 
 def create_chat_model(
     provider_name: str = "deepseek",
     model_name: Optional[str] = None,
     temperature: Optional[float] = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> BaseChatModel:
     """
     创建聊天模型的便捷函数
@@ -383,15 +403,30 @@ def create_chat_model(
     """
     provider = get_llm_provider(provider_name)
 
-    # 覆盖配置
-    if model_name:
-        provider.config.model_name = model_name
-    if temperature is not None:
-        provider.config.temperature = temperature
+    if model_name or temperature is not None:
+        provider.config = provider.config.with_overrides(
+            model_name=model_name,
+            temperature=temperature,
+        )
 
     return provider.create_chat_model(**kwargs)
 
 
 def list_providers() -> list[str]:
     """列出所有可用的 LLM 提供者"""
-    return list(_PROVIDERS.keys())
+    return list(_PROVIDER_REGISTRY.keys())
+
+
+__all__ = [
+    "LLMProviderType",
+    "LLMConfig",
+    "BaseLLMProvider",
+    "DeepSeekProvider",
+    "DoubaoProvider",
+    "AliyunProvider",
+    "MimoProvider",
+    "MockProvider",
+    "get_llm_provider",
+    "create_chat_model",
+    "list_providers",
+]

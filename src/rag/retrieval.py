@@ -10,7 +10,7 @@ from typing import Any
 from core.logger import logger
 from core.exceptions import RetrievalError
 from repositories.vector_repository import VectorRepository
-from infras.embedding.bge_model import CachedBGEEmbeddingModel
+from infras.embedding.bge_model import BGEEmbeddingModel
 from retrieval.pipeline import RetrievalPipeline
 from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
 from retrieval.ranking.mmr import MMRReranker
@@ -32,7 +32,7 @@ class Retrieval:
     def __init__(
         self,
         vector_repo: VectorRepository | None = None,
-        embedding_model: CachedBGEEmbeddingModel | None = None,
+        embedding_model: BGEEmbeddingModel | None = None,
         default_top_k: int = 5,
         default_threshold: float = 0.7,
     ):

@@ -9,8 +9,8 @@ Utils Package
 # 相似度计算
 from .similarity import (
     SimilaritySearchEngine,
-    DistanceType,
 )
+from constants.rag import DistanceType
 
 # 过滤器
 from .filters import (

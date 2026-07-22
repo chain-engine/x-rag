@@ -5,6 +5,8 @@ Score Filter Module
 分值过滤 — 基于相似度阈值的过滤
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from retrieval.ranking.base import BaseRerankingProvider
@@ -18,14 +20,14 @@ class ScoreFilter(BaseRerankingProvider):
     基于相似度/相关分值阈值过滤低质量候选文档。
     """
 
-    name = "score_filter"
-    description = "分值过滤器 — 基于阈值的文档过滤"
+    name: str = "score_filter"
+    description: str = "分值过滤器 — 基于阈值的文档过滤"
 
     def __init__(
         self,
         threshold: float = 0.7,
         score_field: str = "score",
-    ):
+    ) -> None:
         """
         初始化分值过滤器
 
@@ -42,7 +44,7 @@ class ScoreFilter(BaseRerankingProvider):
         candidates: list[dict[str, Any]],
         threshold: float | None = None,
         top_k: int | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
         过滤低于阈值的文档

@@ -67,7 +67,6 @@ class EmbeddingConfig:
     model: str = "BAAI/bge-m3"
     device: str = "cpu"
     batch_size: int = 32
-    cache_size: int = 1000
     normalize: bool = True
 
 
@@ -183,7 +182,6 @@ class Settings:
                 "model": "BAAI/bge-m3",
                 "device": "cpu",
                 "batch_size": 32,
-                "cache_size": 1000,
                 "normalize": True,
             },
             "vector_store": {
@@ -271,7 +269,6 @@ class Settings:
             "EMBEDDING_MODEL": ("embedding", "model", str),
             "EMBEDDING_DEVICE": ("embedding", "device", str),
             "EMBEDDING_BATCH_SIZE": ("embedding", "batch_size", int),
-            "EMBEDDING_CACHE_SIZE": ("embedding", "cache_size", int),
             "EMBEDDING_NORMALIZE": ("embedding", "normalize", lambda v: v.lower() == "true"),
             "VECTOR_STORE_PERSIST_DIR": ("vector_store", "persist_directory", str),
             "VECTOR_STORE_COLLECTION_NAME": ("vector_store", "collection_name", str),
@@ -388,10 +385,6 @@ class Settings:
     @property
     def EMBEDDING_BATCH_SIZE(self) -> int:
         return self.embedding.batch_size
-
-    @property
-    def EMBEDDING_CACHE_SIZE(self) -> int:
-        return self.embedding.cache_size
 
     @property
     def EMBEDDING_NORMALIZE(self) -> bool:
@@ -576,3 +569,19 @@ class Settings:
 
 # 创建全局配置实例
 settings: Final[Settings] = Settings()
+
+__all__ = [
+    "ServerConfig",
+    "LoggingConfig",
+    "RateLimitConfig",
+    "CORSConfig",
+    "APIConfig",
+    "EmbeddingConfig",
+    "VectorStoreConfig",
+    "TextSplitterConfig",
+    "RetrievalConfig",
+    "GenerationConfig",
+    "LLMProvidersConfig",
+    "Settings",
+    "settings",
+]

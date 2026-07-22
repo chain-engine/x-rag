@@ -5,6 +5,9 @@ Semantic Reranking Module
 语义重排序 — 基于 LLM 语义评分进行重排序
 """
 
+from __future__ import annotations
+
+import re
 from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -21,15 +24,27 @@ class SemanticReranker(BaseRerankingProvider):
     使用 LLM 对候选文档与查询的相关性进行语义评分，并据此重新排序。
     """
 
-    name = "semantic_reranker"
-    description = "语义重排序 — 使用 LLM 语义评分重排"
+    name: str = "semantic_reranker"
+    description: str = "语义重排序 — 使用 LLM 语义评分重排"
+
+    DEFAULT_SYSTEM_PROMPT: str = """你是一个专业的相关性评分专家。请评估以下文档与查询的相关程度。
+
+评分标准：
+1. 完全相关（1.0）：文档内容直接回答了查询
+2. 高度相关（0.8）：文档内容大部分与查询相关
+3. 中度相关（0.6）：文档部分内容与查询相关
+4. 低度相关（0.4）：文档仅有少量内容与查询相关
+5. 不相关（0.2）：文档内容与查询无关
+
+要求：
+请严格按照上述标准评分，返回0到1之间的小数分数，保留两位小数。"""
 
     def __init__(
         self,
         llm_provider: Optional[BaseLLMProvider] = None,
         provider_name: str = "deepseek",
         system_prompt: Optional[str] = None,
-    ):
+    ) -> None:
         """
         初始化语义重排序器
 
@@ -38,26 +53,16 @@ class SemanticReranker(BaseRerankingProvider):
             provider_name: LLM 提供者名称
             system_prompt: 评分系统提示词
         """
-        self._llm_provider = llm_provider
-        self._provider_name = provider_name
-        self._system_prompt = system_prompt or (
-            "你是一个专业的相关性评分专家。请评估以下文档与查询的相关程度。\n\n"
-            "评分标准：\n"
-            "1. 完全相关（1.0）：文档内容直接回答了查询\n"
-            "2. 高度相关（0.8）：文档内容大部分与查询相关\n"
-            "3. 中度相关（0.6）：文档部分内容与查询相关\n"
-            "4. 低度相关（0.4）：文档仅有少量内容与查询相关\n"
-            "5. 不相关（0.2）：文档内容与查询无关\n\n"
-            "要求：\n"
-            "请严格按照上述标准评分，返回0到1之间的小数分数，保留两位小数。"
-        )
+        self._llm_provider: Optional[BaseLLMProvider] = llm_provider
+        self._provider_name: str = provider_name
+        self._system_prompt: str = system_prompt or self.DEFAULT_SYSTEM_PROMPT
 
     def rerank(
         self,
-        query: str,
+        query: str | list[float],
         candidates: list[dict[str, Any]],
         top_k: int | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
         使用 LLM 语义评分重排序
@@ -80,10 +85,10 @@ class SemanticReranker(BaseRerankingProvider):
         if self._llm_provider is None:
             self._llm_provider = get_llm_provider(self._provider_name)
 
-        scored_docs = []
+        scored_docs: list[tuple[float, dict[str, Any]]] = []
         for doc in candidates:
             score = self._score_document(query, doc)
-            doc_with_score = {**doc, "semantic_score": score}
+            doc_with_score: dict[str, Any] = {**doc, "semantic_score": score}
             scored_docs.append((score, doc_with_score))
 
         scored_docs.sort(key=lambda x: x[0], reverse=True)
@@ -102,16 +107,19 @@ class SemanticReranker(BaseRerankingProvider):
 
 请返回相关性分数（0-1之间的小数）："""
 
-        messages = [
+        messages: list[Any] = [
             SystemMessage(content=self._system_prompt),
             HumanMessage(content=scoring_prompt),
         ]
 
         try:
             response = self._llm_provider.invoke(messages)
-            content = response.content if hasattr(response, "content") else str(response)
+            content = (
+                response.content
+                if hasattr(response, "content")
+                else str(response)
+            )
 
-            import re
             match = re.search(r"0?\.\d+", content)
             if match:
                 score = float(match.group())

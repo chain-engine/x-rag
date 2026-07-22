@@ -12,12 +12,14 @@ import tempfile
 import shutil
 from pathlib import Path
 
-from src.repositories.document_repository import DocumentRepository
-from src.repositories.vector_repository import VectorRepository
-from src.services.indexing_service import IndexingService
-from src.services.retrieval_service import RetrievalService
-from src.services.generation_service import GenerationService
-from src.utils.text_splitter import TextSplitter, create_splitter, SplitStrategy
+from repositories.document_repository import DocumentRepository
+from repositories.vector_repository import VectorRepository
+from services.document_service import DocumentService
+from rag.retrieval import Retrieval
+from rag.generation import LLMGeneration
+from rag.augmentation import Augmentation
+from rag.pipeline import RAGPipeline
+from utils.text_splitter import TextSplitter, create_splitter, SplitStrategy
 
 
 @pytest.fixture(scope="session")
@@ -58,13 +60,15 @@ def vector_repository(temp_dir):
 
 
 @pytest.fixture
-def indexing_service(document_repository, vector_repository):
-    """索引服务测试夹具"""
-    service = IndexingService(
+def document_service(document_repository, vector_repository):
+    """文档服务测试夹具"""
+    service = DocumentService(
         vector_repo=vector_repository,
         doc_repo=document_repository,
         chunk_size=100,
         chunk_overlap=10,
+        chunking_provider="langchain",
+        chunking_strategy="recursive",
     )
     service.initialize()
     yield service
@@ -72,24 +76,50 @@ def indexing_service(document_repository, vector_repository):
 
 
 @pytest.fixture
-def retrieval_service(vector_repository):
-    """检索服务测试夹具"""
-    service = RetrievalService(vector_repo=vector_repository)
-    service.initialize()
-    yield service
-    service.shutdown()
+def retrieval(vector_repository):
+    """检索组件测试夹具"""
+    ret = Retrieval(
+        vector_repo=vector_repository,
+        default_top_k=5,
+        default_threshold=0.7,
+    )
+    ret.initialize()
+    yield ret
+    ret.shutdown()
 
 
 @pytest.fixture
-def generation_service():
-    """生成服务测试夹具"""
-    service = GenerationService(
-        default_provider="deepseek",
-        default_model="deepseek-chat",
+def augmentation():
+    """增强组件测试夹具"""
+    aug = Augmentation()
+    aug.initialize()
+    yield aug
+    aug.shutdown()
+
+
+@pytest.fixture
+def generation():
+    """生成组件测试夹具"""
+    gen = LLMGeneration(
+        default_provider="mock",
+        default_model="mock-model",
     )
-    service.initialize()
-    yield service
-    service.shutdown()
+    gen.initialize()
+    yield gen
+    gen.shutdown()
+
+
+@pytest.fixture
+def rag_pipeline(retrieval, augmentation, generation):
+    """RAG 流水线测试夹具"""
+    pipeline = RAGPipeline(
+        retrieval=retrieval,
+        augmentation=augmentation,
+        generation=generation,
+    )
+    pipeline.initialize()
+    yield pipeline
+    pipeline.shutdown()
 
 
 @pytest.fixture
@@ -108,7 +138,7 @@ def sample_text():
     return """
     Python是一种高级编程语言，由Guido van Rossum于1991年首次发布。
     Python的设计哲学强调代码的可读性和简洁的语法。
-   相比于C++或Java，Python让开发者能够用更少的代码表达概念。
+    相比于C++或Java，Python让开发者能够用更少的代码表达概念。
 
     Python支持多种编程范式，包括面向对象、命令式、函数式和过程式编程。
     它拥有一个庞大而全面的标准库。

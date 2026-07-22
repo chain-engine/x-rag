@@ -5,11 +5,14 @@ MMR Reranking Module
 MMR — Maximal Marginal Relevance 多样性重排序
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from retrieval.ranking.base import BaseRerankingProvider
 from utils.similarity import SimilaritySearchEngine, DistanceType
 from core.logger import logger
+from infras.embedding.base import EmbeddingModelBase
 
 
 class MMRReranker(BaseRerankingProvider):
@@ -23,13 +26,13 @@ class MMRReranker(BaseRerankingProvider):
     - λ 越小：越偏向多样性
     """
 
-    name = "mmr_reranker"
-    description = "MMR 多样性重排序 — 平衡相关性与多样性"
+    name: str = "mmr_reranker"
+    description: str = "MMR 多样性重排序 — 平衡相关性与多样性"
 
     def __init__(
         self,
         distance_type: DistanceType = DistanceType.COSINE,
-    ):
+    ) -> None:
         """
         初始化 MMR 重排序器
 
@@ -45,7 +48,7 @@ class MMRReranker(BaseRerankingProvider):
         candidates: list[dict[str, Any]],
         lambda_param: float = 0.5,
         top_k: int | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
         使用 MMR 算法重排序文档
@@ -68,14 +71,16 @@ class MMRReranker(BaseRerankingProvider):
 
         query_vector = self._resolve_query_vector(query, candidates, kwargs)
         if query_vector is None:
-            logger.warning("MMRReranker: cannot resolve query vector, returning original order")
+            logger.warning(
+                "MMRReranker: cannot resolve query vector, returning original order"
+            )
             return candidates[:top_k] if top_k else candidates
 
         doc_vectors = []
         for doc in candidates:
             vec = doc.get("embedding") or doc.get("vector")
             if vec is None:
-                embedding_model = kwargs.get("embedding_model")
+                embedding_model: EmbeddingModelBase | None = kwargs.get("embedding_model")
                 if embedding_model:
                     vec = embedding_model.encode_single(doc.get("text", ""))
                 else:
@@ -84,11 +89,11 @@ class MMRReranker(BaseRerankingProvider):
 
         similarities = self._similarity_engine.compute_batch(query_vector, doc_vectors)
 
-        selected_indices = []
+        selected_indices: list[int] = []
         remaining_indices = list(range(len(candidates)))
 
         while remaining_indices:
-            mmr_scores = []
+            mmr_scores: list[tuple[int, float]] = []
 
             for idx in remaining_indices:
                 relevance = similarities[idx]
@@ -132,7 +137,7 @@ class MMRReranker(BaseRerankingProvider):
             if isinstance(query[0], (int, float)):
                 return query
 
-        embedding_model = kwargs.get("embedding_model")
+        embedding_model: EmbeddingModelBase | None = kwargs.get("embedding_model")
         if embedding_model is None:
             return None
 

@@ -5,7 +5,9 @@ Retrieval Pipeline Module
 检索流水线 — 编排「查询理解 → 候选召回 → 排序筛选」三阶段
 """
 
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import Any, ClassVar
 
 from core.logger import logger
 from core.exceptions import RetrievalError
@@ -15,8 +17,16 @@ from retrieval.understanding.base import (
 )
 from retrieval.candidate.base import BaseRetrievalProvider
 from retrieval.ranking.base import BaseRerankingProvider
-from utils.filters import MetadataFilterEngine
-from utils.similarity import SimilaritySearchEngine, DistanceType
+from constants.rag import (
+    RerankingProviderName,
+    DEFAULT_TOP_K,
+    DEFAULT_SIMILARITY_THRESHOLD,
+    DEFAULT_MMR_LAMBDA,
+    DISTANCE_COSINE,
+    DISTANCE_EUCLIDEAN,
+)
+from infras.embedding.base import EmbeddingModelBase
+from llms.providers import BaseLLMProvider
 
 
 class RetrievalPipeline:
@@ -36,11 +46,11 @@ class RetrievalPipeline:
         understanding_providers: list[BaseQueryUnderstandingProvider] | None = None,
         candidate_providers: list[BaseRetrievalProvider] | None = None,
         reranking_providers: list[BaseRerankingProvider] | None = None,
-        filter_engine: Optional[MetadataFilterEngine] = None,
-        similarity_engine: Optional[SimilaritySearchEngine] = None,
+        filter_engine: MetadataFilterEngine | None = None,
+        similarity_engine: SimilaritySearchEngine | None = None,
         default_top_k: int = 5,
         default_threshold: float = 0.7,
-    ):
+    ) -> None:
         """
         初始化检索流水线
 
@@ -53,33 +63,33 @@ class RetrievalPipeline:
             default_top_k: 默认召回数量
             default_threshold: 默认相似度阈值
         """
-        self._understanding_providers = understanding_providers or []
-        self._candidate_providers = candidate_providers or []
-        self._reranking_providers = reranking_providers or []
-        self._filter_engine = filter_engine or MetadataFilterEngine()
-        self._similarity_engine = similarity_engine or SimilaritySearchEngine(
+        self._understanding_providers: list[BaseQueryUnderstandingProvider] = understanding_providers or []
+        self._candidate_providers: list[BaseRetrievalProvider] = candidate_providers or []
+        self._reranking_providers: list[BaseRerankingProvider] = reranking_providers or []
+        self._filter_engine: MetadataFilterEngine = filter_engine or MetadataFilterEngine()
+        self._similarity_engine: SimilaritySearchEngine = similarity_engine or SimilaritySearchEngine(
             distance_type=DistanceType.COSINE
         )
-        self._default_top_k = default_top_k
-        self._default_threshold = default_threshold
-        self._initialized = False
+        self._default_top_k: int = default_top_k
+        self._default_threshold: float = default_threshold
+        self._initialized: bool = False
 
-        self._llm_providers: dict[str, Any] = {}
-        self._embedding_model: Any = None
+        self._llm_providers: dict[str, BaseLLMProvider] = {}
+        self._embedding_model: EmbeddingModelBase | None = None
 
     # ── Properties ──────────────────────────────────────────
 
     @property
     def understanding_providers(self) -> list[BaseQueryUnderstandingProvider]:
-        return self._understanding_providers
+        return list(self._understanding_providers)
 
     @property
     def candidate_providers(self) -> list[BaseRetrievalProvider]:
-        return self._candidate_providers
+        return list(self._candidate_providers)
 
     @property
     def reranking_providers(self) -> list[BaseRerankingProvider]:
-        return self._reranking_providers
+        return list(self._reranking_providers)
 
     # ── Lifecycle ───────────────────────────────────────────
 
@@ -211,11 +221,11 @@ class RetrievalPipeline:
 
     def get_stats(self) -> dict[str, Any]:
         """获取流水线统计信息"""
-        candidate_stats = {}
-        for p in self._candidate_providers:
-            name = p.name
-            if hasattr(p, "get_stats"):
-                candidate_stats[name] = p.get_stats()
+        candidate_stats: dict[str, Any] = {}
+        for provider in self._candidate_providers:
+            name = provider.name
+            if hasattr(provider, "get_stats"):
+                candidate_stats[name] = provider.get_stats()
 
         return {
             "type": "retrieval_pipeline",
@@ -265,8 +275,8 @@ class RetrievalPipeline:
             )
 
         merged = results[0]
-        for r in results[1:]:
-            merged = merged.merge(r)
+        for result_item in results[1:]:
+            merged = merged.merge(result_item)
 
         logger.debug(
             f"Stage1 merged: processed='{merged.processed_query}', "
@@ -324,7 +334,7 @@ class RetrievalPipeline:
 
         for provider in self._reranking_providers:
             try:
-                if provider.name == "mmr_reranker":
+                if provider.name == RerankingProviderName.MMR_RERANKER:
                     if use_mmr:
                         current_candidates = provider.rerank(
                             query=query,

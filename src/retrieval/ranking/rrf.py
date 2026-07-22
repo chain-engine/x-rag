@@ -5,6 +5,8 @@ RRF Reranking Module
 RRF — Reciprocal Rank Fusion 倒数排名融合
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from retrieval.ranking.base import BaseRerankingProvider
@@ -18,10 +20,10 @@ class RRFReranker(BaseRerankingProvider):
     通过多路检索结果的倒数排名进行融合，适用于集成多种检索方法的结果。
     """
 
-    name = "rrf_reranker"
-    description = "RRF 倒数排名融合 — 融合多路检索结果"
+    name: str = "rrf_reranker"
+    description: str = "RRF 倒数排名融合 — 融合多路检索结果"
 
-    def __init__(self, k: int = 60):
+    def __init__(self, k: int = 60) -> None:
         """
         初始化 RRF 融合器
 
@@ -36,7 +38,7 @@ class RRFReranker(BaseRerankingProvider):
         candidates: list[dict[str, Any]],
         ranked_lists: list[list[dict[str, Any]]] | None = None,
         top_k: int | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> list[dict[str, Any]]:
         """
         使用 RRF 算法融合多个排名列表
@@ -52,7 +54,9 @@ class RRFReranker(BaseRerankingProvider):
             list[dict[str, Any]]: RRF 融合后的文档列表
         """
         if ranked_lists is None or len(ranked_lists) == 0:
-            logger.warning("RRFReranker: no ranked lists provided, returning candidates as-is")
+            logger.warning(
+                "RRFReranker: no ranked lists provided, returning candidates as-is"
+            )
             return candidates[:top_k] if top_k else candidates
 
         rrf_scores: dict[str, float] = {}
@@ -77,6 +81,8 @@ class RRFReranker(BaseRerankingProvider):
         )
 
         result = [doc_map[doc_id] for doc_id, _ in sorted_docs]
-        logger.debug(f"RRFReranker: fused {len(ranked_lists)} lists into {len(result)} docs")
+        logger.debug(
+            f"RRFReranker: fused {len(ranked_lists)} lists into {len(result)} docs"
+        )
 
         return result[:top_k] if top_k else result

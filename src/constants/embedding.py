@@ -14,4 +14,3 @@ from typing import Final
 DEFAULT_EMBEDDING_MODEL: Final[str] = "BAAI/bge-m3"
 DEFAULT_EMBEDDING_DEVICE: Final[str] = "cpu"
 DEFAULT_EMBEDDING_BATCH_SIZE: Final[int] = 32
-DEFAULT_EMBEDDING_CACHE_SIZE: Final[int] = 1000

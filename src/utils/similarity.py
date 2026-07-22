@@ -8,7 +8,6 @@ Similarity Search Engine Module
 """
 
 from typing import List, Optional
-from enum import Enum
 
 import numpy as np
 
@@ -17,14 +16,8 @@ from constants.rag import (
     DISTANCE_COSINE,
     DISTANCE_EUCLIDEAN,
     DISTANCE_DOT,
+    DistanceType,
 )
-
-
-class DistanceType(str, Enum):
-    """距离度量类型"""
-    COSINE = "cosine"
-    EUCLIDEAN = "euclidean"
-    DOT = "dot"
 
 
 class SimilaritySearchEngine:

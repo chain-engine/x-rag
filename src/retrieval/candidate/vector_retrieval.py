@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from retrieval.candidate.base import BaseRetrievalProvider
 from repositories.vector_repository import VectorRepository
-from infras.embedding.bge_model import CachedBGEEmbeddingModel
+from infras.embedding.bge_model import BGEEmbeddingModel
 from core.logger import logger
 
 
@@ -53,7 +53,7 @@ class ChromaVectorRetrieval(VectorRetrievalProvider):
     def __init__(
         self,
         vector_repo: Optional[VectorRepository] = None,
-        embedding_model: Optional[CachedBGEEmbeddingModel] = None,
+        embedding_model: Optional[BGEEmbeddingModel] = None,
         persist_directory: str = "./data/chroma",
         collection_name: str = "documents",
         distance_type: str = "cosine",
@@ -84,7 +84,7 @@ class ChromaVectorRetrieval(VectorRetrievalProvider):
         return self._vector_repo
 
     @property
-    def embedding_model(self) -> CachedBGEEmbeddingModel:
+    def embedding_model(self) -> BGEEmbeddingModel:
         """获取 embedding 模型"""
         return self._embedding_model
 
@@ -102,7 +102,7 @@ class ChromaVectorRetrieval(VectorRetrievalProvider):
         self._vector_repo.initialize()
 
         if self._embedding_model is None:
-            self._embedding_model = CachedBGEEmbeddingModel()
+            self._embedding_model = BGEEmbeddingModel()
 
         self._initialized = True
         logger.info(f"ChromaVectorRetrieval initialized: collection={self._collection_name}")
