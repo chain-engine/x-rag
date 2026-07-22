@@ -28,6 +28,12 @@ from constants.generation import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
 )
+from constants.embedding import (
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_EMBEDDING_DEVICE,
+    DEFAULT_EMBEDDING_BATCH_SIZE,
+    DEFAULT_EMBEDDING_CACHE_SIZE,
+)
 
 
 @dataclass
@@ -79,10 +85,11 @@ class APIConfig:
 @dataclass
 class EmbeddingConfig:
     """向量模型配置"""
-    model: str = "BAAI/bge-m3"
-    device: str = "cpu"
-    batch_size: int = 32
+    model: str = DEFAULT_EMBEDDING_MODEL
+    device: str = DEFAULT_EMBEDDING_DEVICE
+    batch_size: int = DEFAULT_EMBEDDING_BATCH_SIZE
     normalize: bool = True
+    cache_size: int = DEFAULT_EMBEDDING_CACHE_SIZE
 
 
 @dataclass
@@ -194,10 +201,11 @@ class Settings:
                 "version": "1.0.0",
             },
             "embedding": {
-                "model": "BAAI/bge-m3",
-                "device": "cpu",
-                "batch_size": 32,
+                "model": DEFAULT_EMBEDDING_MODEL,
+                "device": DEFAULT_EMBEDDING_DEVICE,
+                "batch_size": DEFAULT_EMBEDDING_BATCH_SIZE,
                 "normalize": True,
+                "cache_size": DEFAULT_EMBEDDING_CACHE_SIZE,
             },
             "vector_store": {
                 "type": "chroma",
