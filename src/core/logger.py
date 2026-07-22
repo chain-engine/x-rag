@@ -37,8 +37,10 @@ def _configure_logger():
             retention=settings.LOG_RETENTION,
             compression="zip",
             level=settings.LOG_LEVEL,
-            enqueue=True,
+            enqueue=settings.DEBUG is False,
             format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>",
+            backtrace=True,
+            diagnose=True,
         )
         
         # 配置日志输出到控制台（开发环境）
@@ -46,7 +48,7 @@ def _configure_logger():
             _logger.add(
                 sink=lambda msg: print(msg, end=""),
                 level="DEBUG",
-                enqueue=True,
+                enqueue=False,
                 colorize=True,
                 format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}:{function}</cyan> | <level>{message}</level>",
             )
