@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from retrieval.ranking.base import BaseRerankingProvider
+from retrieval.ranking.base import BaseFilterProvider
 from core.logger import logger
 
 
-class ScoreFilter(BaseRerankingProvider):
+class ScoreFilter(BaseFilterProvider):
     """
     分值过滤器
 
@@ -38,9 +38,8 @@ class ScoreFilter(BaseRerankingProvider):
         self._threshold = threshold
         self._score_field = score_field
 
-    def rerank(
+    def filter(
         self,
-        query: str | list[float],
         candidates: list[dict[str, Any]],
         threshold: float | None = None,
         top_k: int | None = None,
@@ -50,7 +49,6 @@ class ScoreFilter(BaseRerankingProvider):
         过滤低于阈值的文档
 
         Args:
-            query: 查询（此方法不使用，仅满足接口）
             candidates: 候选文档列表
             threshold: 过滤阈值（可选，优先级高于构造函数的 threshold）
             top_k: 返回结果数量（可选）

@@ -8,21 +8,12 @@ Augmentation Module
 
 from typing import Any
 
+from constants.rag import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT_TEMPLATE
 from core.logger import logger
 
 
 class Augmentation:
     """增强器"""
-
-    DEFAULT_SYSTEM_PROMPT = "你是一个专业的AI助手，请根据提供的参考资料回答用户问题。"
-    DEFAULT_USER_PROMPT_TEMPLATE = """基于以下参考资料回答问题。
-
-参考资料：
-{context}
-
-问题：{query}
-
-请根据参考资料回答，如果资料中没有相关信息，请如实说明。"""
 
     def __init__(
         self,
@@ -30,8 +21,8 @@ class Augmentation:
         user_prompt_template: str | None = None,
         max_context_length: int = 8000,
     ):
-        self._system_prompt = system_prompt or self.DEFAULT_SYSTEM_PROMPT
-        self._user_prompt_template = user_prompt_template or self.DEFAULT_USER_PROMPT_TEMPLATE
+        self._system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+        self._user_prompt_template = user_prompt_template or DEFAULT_USER_PROMPT_TEMPLATE
         self._max_context_length = max_context_length
 
     def initialize(self) -> None:

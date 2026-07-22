@@ -5,6 +5,8 @@ Settings Configuration Module
 
 全局配置中心
 支持从环境变量和YAML配置文件读取配置
+
+NOTE: 默认值统一从 constants/ 模块引用，避免重复定义
 """
 
 import os
@@ -13,6 +15,19 @@ from pathlib import Path
 from dataclasses import dataclass, field
 import yaml
 from dotenv import load_dotenv
+
+from constants.rag import (
+    DEFAULT_TOP_K,
+    DEFAULT_SIMILARITY_THRESHOLD,
+    DEFAULT_MMR_LAMBDA,
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_CHUNK_OVERLAP,
+)
+from constants.generation import (
+    DEFAULT_TEMPERATURE,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TIMEOUT,
+)
 
 
 @dataclass
@@ -84,18 +99,18 @@ class TextSplitterConfig:
     """文本切分配置"""
     provider: str = "langchain"
     strategy: str = "recursive"
-    chunk_size: int = 512
-    chunk_overlap: int = 50
+    chunk_size: int = DEFAULT_CHUNK_SIZE
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP
     separators: list[str] = field(default_factory=lambda: ["\n\n", "\n", "。", "！", "？", " ", ""])
 
 
 @dataclass
 class RetrievalConfig:
     """检索配置"""
-    top_k: int = 5
-    similarity_threshold: float = 0.7
+    top_k: int = DEFAULT_TOP_K
+    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD
     use_mmr: bool = False
-    mmr_lambda: float = 0.5
+    mmr_lambda: float = DEFAULT_MMR_LAMBDA
 
 
 @dataclass
@@ -103,9 +118,9 @@ class GenerationConfig:
     """生成配置"""
     provider: str = "deepseek"
     model: str = "deepseek-chat"
-    temperature: float = 0.7
-    max_tokens: int = 2000
-    timeout: int = 30
+    temperature: float = DEFAULT_TEMPERATURE
+    max_tokens: int = DEFAULT_MAX_TOKENS
+    timeout: int = DEFAULT_TIMEOUT
 
 
 @dataclass
@@ -193,22 +208,22 @@ class Settings:
             "text_splitter": {
                 "provider": "langchain",
                 "strategy": "recursive",
-                "chunk_size": 512,
-                "chunk_overlap": 50,
+                "chunk_size": DEFAULT_CHUNK_SIZE,
+                "chunk_overlap": DEFAULT_CHUNK_OVERLAP,
                 "separators": ["\n\n", "\n", "。", "！", "？", " ", ""],
             },
             "retrieval": {
-                "top_k": 5,
-                "similarity_threshold": 0.7,
+                "top_k": DEFAULT_TOP_K,
+                "similarity_threshold": DEFAULT_SIMILARITY_THRESHOLD,
                 "use_mmr": False,
-                "mmr_lambda": 0.5,
+                "mmr_lambda": DEFAULT_MMR_LAMBDA,
             },
             "generation": {
                 "provider": "deepseek",
                 "model": "deepseek-chat",
-                "temperature": 0.7,
-                "max_tokens": 2000,
-                "timeout": 30,
+                "temperature": DEFAULT_TEMPERATURE,
+                "max_tokens": DEFAULT_MAX_TOKENS,
+                "timeout": DEFAULT_TIMEOUT,
             },
             "llm_providers": {
                 "deepseek_api_key": "",

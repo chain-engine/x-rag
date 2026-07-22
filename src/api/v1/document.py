@@ -17,10 +17,10 @@ from schemas.document import (
     DocumentStatusResponse,
     DocumentInfo,
 )
+from schemas.responses import ResponseModel
 from core.logger import logger
 from core.exceptions import DocumentError, ValidationError
 from services.document_service import DocumentService
-from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()
 
@@ -35,6 +35,7 @@ def get_document_service(request: Request) -> DocumentService:
     summary="文档上传",
     description="上传文档并自动进行索引",
     tags=["文档"],
+    response_model=ResponseModel,
 )
 async def upload_document(
     file: UploadFile = File(..., description="上传的文件"),
@@ -60,17 +61,14 @@ async def upload_document(
             metadata=meta,
         )
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": {
-                "document_id": result["document_id"],
-                "file_name": file_name,
-                "status": result["status"],
-                "chunk_count": result["chunk_count"],
-                "message": "Document uploaded and indexed successfully",
-            },
+        data = {
+            "document_id": result["document_id"],
+            "file_name": file_name,
+            "status": result["status"],
+            "chunk_count": result["chunk_count"],
+            "message": "Document uploaded and indexed successfully",
         }
+        return ResponseModel(data=data).model_dump()
 
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -86,6 +84,7 @@ async def upload_document(
     summary="文档列表",
     description="获取文档列表（支持分页）",
     tags=["文档"],
+    response_model=ResponseModel,
 )
 async def list_documents(
     page: int = 1,
@@ -127,17 +126,14 @@ async def list_documents(
             for doc in documents
         ]
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": {
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": total_pages,
-                "items": doc_infos,
-            },
+        data = {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "items": doc_infos,
         }
+        return ResponseModel(data=data).model_dump()
 
     except Exception as e:
         logger.error(f"列出文档失败: {e}")
@@ -149,6 +145,7 @@ async def list_documents(
     summary="获取文档详情",
     description="获取指定文档的详细信息",
     tags=["文档"],
+    response_model=ResponseModel,
 )
 async def get_document(
     document_id: str,
@@ -161,11 +158,7 @@ async def get_document(
         if document.get("status") == "not_found":
             raise HTTPException(status_code=404, detail="文档不存在")
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": document,
-        }
+        return ResponseModel(data=document).model_dump()
 
     except HTTPException:
         raise
@@ -179,6 +172,7 @@ async def get_document(
     summary="删除文档",
     description="删除指定文档及其关联的向量",
     tags=["文档"],
+    response_model=ResponseModel,
 )
 async def delete_document(
     document_id: str,
@@ -188,16 +182,13 @@ async def delete_document(
     try:
         result = document_service.delete_document(document_id)
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": {
-                "document_id": result["document_id"],
-                "status": result["status"],
-                "vector_count": result["vector_count"],
-                "message": "文档删除成功",
-            },
+        data = {
+            "document_id": result["document_id"],
+            "status": result["status"],
+            "vector_count": result["vector_count"],
+            "message": "文档删除成功",
         }
+        return ResponseModel(data=data).model_dump()
 
     except DocumentError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -211,6 +202,7 @@ async def delete_document(
     summary="获取文档状态",
     description="获取指定文档的处理状态",
     tags=["文档"],
+    response_model=ResponseModel,
 )
 async def get_document_status(
     document_id: str,
@@ -223,11 +215,7 @@ async def get_document_status(
         if status.get("status") == "not_found":
             raise HTTPException(status_code=404, detail="文档不存在")
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": status,
-        }
+        return ResponseModel(data=status).model_dump()
 
     except HTTPException:
         raise

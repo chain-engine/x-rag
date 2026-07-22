@@ -42,8 +42,10 @@ class RAGPipeline:
 
     def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
+        vector_count = self.retrieval.get_vector_count()
         return {
             "retrieval": self.retrieval.get_stats(),
+            "vector_count": vector_count,
             "augmentation": {
                 "type": "augmentation",
                 "context_length": self.augmentation._max_context_length,

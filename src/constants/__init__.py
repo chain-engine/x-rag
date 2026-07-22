@@ -78,6 +78,9 @@ from constants.rag import (
     DEFAULT_MMR_LAMBDA,
     DEFAULT_CHUNK_SIZE,
     DEFAULT_CHUNK_OVERLAP,
+    # Prompt Templates
+    DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_USER_PROMPT_TEMPLATE,
 )
 
 from constants.embedding import (
@@ -194,6 +197,9 @@ __all__ = [
     "DEFAULT_MMR_LAMBDA",
     "DEFAULT_CHUNK_SIZE",
     "DEFAULT_CHUNK_OVERLAP",
+    # Prompt Templates
+    "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_USER_PROMPT_TEMPLATE",
     # LLM Providers
     "LLM_PROVIDER_DEEPSEEK",
     "LLM_PROVIDER_DOUBAO",

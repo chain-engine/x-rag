@@ -15,10 +15,10 @@ from schemas.rag import (
     EmbeddingRequest,
     RetrievedDocument,
 )
+from schemas.responses import ResponseModel
 from core.logger import logger
 from core.exceptions import RetrievalError, GenerationError
 from services.rag_service import RAGService
-from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()
 
@@ -33,6 +33,7 @@ def get_rag_service(request: Request) -> RAGService:
     summary="RAG查询",
     description="使用RAG进行问答，检索相关文档并生成答案",
     tags=["RAG"],
+    response_model=ResponseModel,
 )
 async def rag_query(
     request: RAGQueryRequest,
@@ -52,11 +53,7 @@ async def rag_query(
             max_tokens=request.max_tokens,
         )
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": result,
-        }
+        return ResponseModel(data=result).model_dump()
 
     except (RetrievalError, GenerationError) as e:
         logger.exception("RAG service error")
@@ -71,6 +68,7 @@ async def rag_query(
     summary="文本检索",
     description="通过文本检索相关文档，不进行生成",
     tags=["RAG"],
+    response_model=ResponseModel,
 )
 async def retrieve_docs(
     request: RetrievalRequest,
@@ -98,15 +96,12 @@ async def retrieve_docs(
             for doc in documents
         ]
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": {
-                "query": request.query,
-                "documents": [doc.model_dump() for doc in retrieved_docs],
-                "total": len(retrieved_docs),
-            },
+        data = {
+            "query": request.query,
+            "documents": [doc.model_dump() for doc in retrieved_docs],
+            "total": len(retrieved_docs),
         }
+        return ResponseModel(data=data).model_dump()
 
     except RetrievalError as e:
         logger.exception("Retrieval error")
@@ -121,6 +116,7 @@ async def retrieve_docs(
     summary="文本向量化",
     description="将文本转换为向量表示",
     tags=["RAG"],
+    response_model=ResponseModel,
 )
 async def embed_text(
     request: EmbeddingRequest,
@@ -134,15 +130,12 @@ async def embed_text(
         )
         stats = rag_service.get_embedding_stats()
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": {
-                "embeddings": embeddings,
-                "dimension": stats.get("dimension"),
-                "model": stats.get("model"),
-            },
+        data = {
+            "embeddings": embeddings,
+            "dimension": stats.get("dimension"),
+            "model": stats.get("model"),
         }
+        return ResponseModel(data=data).model_dump()
 
     except Exception as e:
         logger.error(f"Embed error: {e}")
@@ -154,6 +147,7 @@ async def embed_text(
     summary="RAG统计",
     description="获取RAG系统统计信息",
     tags=["RAG"],
+    response_model=ResponseModel,
 )
 async def get_rag_stats(
     rag_service: RAGService = Depends(get_rag_service),
@@ -161,15 +155,13 @@ async def get_rag_stats(
     """获取RAG统计信息"""
     try:
         stats = rag_service.get_stats()
+        vector_count = stats.get("vector_count", 0)
 
-        return {
-            "code": HTTP_OK,
-            "message": MSG_SUCCESS,
-            "data": {
-                "vector_count": stats.get("retrieval", {}).get("vector_count", 0),
-                "status": "running",
-            },
+        data = {
+            "vector_count": vector_count,
+            "status": "running",
         }
+        return ResponseModel(data=data).model_dump()
 
     except Exception as e:
         logger.error(f"Get stats error: {e}")

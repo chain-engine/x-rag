@@ -50,6 +50,19 @@ DEFAULT_SIMILARITY_THRESHOLD: Final[float] = 0.7
 DEFAULT_MMR_LAMBDA: Final[float] = 0.5
 
 # ====================================
+# Prompt 常量
+# ====================================
+DEFAULT_SYSTEM_PROMPT: Final[str] = "你是一个专业的AI助手，请根据提供的参考资料回答用户问题。"
+DEFAULT_USER_PROMPT_TEMPLATE: Final[str] = """基于以下参考资料回答问题。
+
+参考资料：
+{context}
+
+问题：{query}
+
+请根据参考资料回答，如果资料中没有相关信息，请如实说明。"""
+
+# ====================================
 # 文本切分常量
 # ====================================
 DEFAULT_CHUNK_SIZE: Final[int] = 512
@@ -97,6 +110,8 @@ __all__ = [
     "DEFAULT_MMR_LAMBDA",
     "DEFAULT_CHUNK_SIZE",
     "DEFAULT_CHUNK_OVERLAP",
+    "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_USER_PROMPT_TEMPLATE",
     "DistanceType",
     "RerankingProviderName",
 ]

@@ -68,6 +68,8 @@ class Retrieval:
         # Stage 3: 排序筛选
         reranking_providers = [
             MMRReranker(distance_type=DistanceType.COSINE),
+        ]
+        filter_providers = [
             ScoreFilter(threshold=default_threshold),
         ]
 
@@ -75,6 +77,7 @@ class Retrieval:
             understanding_providers=understanding_providers,
             candidate_providers=[vector_retrieval],
             reranking_providers=reranking_providers,
+            filter_providers=filter_providers,
             similarity_engine=SimilaritySearchEngine(distance_type=DistanceType.COSINE),
             default_top_k=default_top_k,
             default_threshold=default_threshold,

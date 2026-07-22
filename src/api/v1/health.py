@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 from fastapi import APIRouter, Depends, Request
 
-from schemas.health import HealthCheckResponse, VersionResponse, StatusResponse
+from schemas.responses import ResponseModel
 from core.logger import logger
 from services.rag_service import RAGService
 from services.document_service import DocumentService
@@ -32,10 +32,10 @@ def get_document_service(request: Request) -> DocumentService:
 
 @router.get(
     "/health",
-    response_model=HealthCheckResponse,
     summary="健康检查",
     description="检查系统健康状态",
     tags=["系统"],
+    response_model=ResponseModel,
 )
 async def health_check(
     rag_service: RAGService = Depends(get_rag_service),
@@ -60,37 +60,39 @@ async def health_check(
     except Exception as e:
         checks["document_store"] = f"unhealthy: {str(e)}"
 
-    return {
+    data = {
         "status": "healthy",
         "version": "1.0.0",
-        "timestamp": datetime.utcnow(),
+        "timestamp": datetime.utcnow().isoformat(),
         "checks": checks,
     }
+    return ResponseModel(data=data).model_dump()
 
 
 @router.get(
     "/version",
-    response_model=VersionResponse,
     summary="版本信息",
     description="获取系统版本信息",
     tags=["系统"],
+    response_model=ResponseModel,
 )
 async def get_version() -> dict[str, Any]:
     """版本信息接口"""
-    return {
+    data = {
         "version": "1.0.0",
         "name": "x-rag",
         "description": "A production-ready RAG learning and training project",
         "python_version": "3.11",
     }
+    return ResponseModel(data=data).model_dump()
 
 
 @router.get(
     "/status",
-    response_model=StatusResponse,
     summary="系统状态",
     description="获取系统运行状态",
     tags=["系统"],
+    response_model=ResponseModel,
 )
 async def get_status(
     rag_service: RAGService = Depends(get_rag_service),
@@ -112,10 +114,11 @@ async def get_status(
     except Exception as e:
         logger.warning(f"Failed to get document count: {e}")
 
-    return {
+    data = {
         "status": "running",
         "uptime": uptime,
         "memory_usage": {},
         "vector_count": vector_count,
         "document_count": document_count,
     }
+    return ResponseModel(data=data).model_dump()

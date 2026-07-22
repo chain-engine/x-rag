@@ -16,7 +16,7 @@ from retrieval.understanding.base import (
     QueryUnderstandingResult,
 )
 from retrieval.candidate.base import BaseRetrievalProvider
-from retrieval.ranking.base import BaseRerankingProvider
+from retrieval.ranking.base import BaseRerankingProvider, BaseFilterProvider
 from constants.rag import (
     RerankingProviderName,
     DEFAULT_TOP_K,
@@ -46,6 +46,7 @@ class RetrievalPipeline:
         understanding_providers: list[BaseQueryUnderstandingProvider] | None = None,
         candidate_providers: list[BaseRetrievalProvider] | None = None,
         reranking_providers: list[BaseRerankingProvider] | None = None,
+        filter_providers: list[BaseFilterProvider] | None = None,
         filter_engine: MetadataFilterEngine | None = None,
         similarity_engine: SimilaritySearchEngine | None = None,
         default_top_k: int = 5,
@@ -57,7 +58,8 @@ class RetrievalPipeline:
         Args:
             understanding_providers: 查询理解阶段提供者列表
             candidate_providers: 候选召回阶段提供者列表
-            reranking_providers: 排序筛选阶段提供者列表
+            reranking_providers: 重排序阶段提供者列表
+            filter_providers: 过滤阶段提供者列表
             filter_engine: 元数据过滤引擎
             similarity_engine: 相似度计算引擎
             default_top_k: 默认召回数量
@@ -66,6 +68,7 @@ class RetrievalPipeline:
         self._understanding_providers: list[BaseQueryUnderstandingProvider] = understanding_providers or []
         self._candidate_providers: list[BaseRetrievalProvider] = candidate_providers or []
         self._reranking_providers: list[BaseRerankingProvider] = reranking_providers or []
+        self._filter_providers: list[BaseFilterProvider] = filter_providers or []
         self._filter_engine: MetadataFilterEngine = filter_engine or MetadataFilterEngine()
         self._similarity_engine: SimilaritySearchEngine = similarity_engine or SimilaritySearchEngine(
             distance_type=DistanceType.COSINE
@@ -76,6 +79,9 @@ class RetrievalPipeline:
 
         self._llm_providers: dict[str, BaseLLMProvider] = {}
         self._embedding_model: EmbeddingModelBase | None = None
+
+        # 存储每路检索结果，供 RRF 等多路融合算法使用
+        self._ranked_lists: dict[str, list[dict[str, Any]]] = {}
 
     # ── Properties ──────────────────────────────────────────
 
@@ -90,6 +96,10 @@ class RetrievalPipeline:
     @property
     def reranking_providers(self) -> list[BaseRerankingProvider]:
         return list(self._reranking_providers)
+
+    @property
+    def filter_providers(self) -> list[BaseFilterProvider]:
+        return list(self._filter_providers)
 
     # ── Lifecycle ───────────────────────────────────────────
 
@@ -111,7 +121,8 @@ class RetrievalPipeline:
             f"RetrievalPipeline initialized: "
             f"{len(self._understanding_providers)} understanding, "
             f"{len(self._candidate_providers)} candidate, "
-            f"{len(self._reranking_providers)} reranking providers"
+            f"{len(self._reranking_providers)} reranking, "
+            f"{len(self._filter_providers)} filter providers"
         )
 
     def shutdown(self) -> None:
@@ -147,9 +158,14 @@ class RetrievalPipeline:
         logger.debug(f"Added candidate provider: {provider.name}")
 
     def add_reranking_provider(self, provider: BaseRerankingProvider) -> None:
-        """动态添加排序筛选 Provider"""
+        """动态添加重排序 Provider"""
         self._reranking_providers.append(provider)
         logger.debug(f"Added reranking provider: {provider.name}")
+
+    def add_filter_provider(self, provider: BaseFilterProvider) -> None:
+        """动态添加过滤 Provider"""
+        self._filter_providers.append(provider)
+        logger.debug(f"Added filter provider: {provider.name}")
 
     def retrieve(
         self,
@@ -188,7 +204,7 @@ class RetrievalPipeline:
             processed_query = understanding_result.processed_query
 
             # ── Stage 2: 候选召回 ──────────────────────────
-            candidates = self._stage2_candidate_retrieval(
+            candidates, ranked_lists = self._stage2_candidate_retrieval(
                 query=processed_query,
                 sub_queries=understanding_result.sub_queries,
                 top_k=effective_top_k,
@@ -203,6 +219,7 @@ class RetrievalPipeline:
             results = self._stage3_rank_and_filter(
                 query=processed_query,
                 candidates=candidates,
+                ranked_lists=ranked_lists,
                 effective_threshold=effective_threshold,
                 effective_top_k=effective_top_k,
                 use_mmr=use_mmr,
@@ -233,6 +250,7 @@ class RetrievalPipeline:
                 "understanding": [p.name for p in self._understanding_providers],
                 "candidate": [p.name for p in self._candidate_providers],
                 "reranking": [p.name for p in self._reranking_providers],
+                "filter": [p.name for p in self._filter_providers],
             },
             "defaults": {
                 "top_k": self._default_top_k,
@@ -291,19 +309,27 @@ class RetrievalPipeline:
         sub_queries: list[str],
         top_k: int,
         metadata_filter: dict[str, Any] | None,
-    ) -> list[dict[str, Any]]:
-        """Stage 2: 候选召回"""
+    ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+        """
+        Stage 2: 候选召回
+
+        Returns:
+            tuple: (合并后的候选列表, 每路检索结果字典 {provider_name: [results]})
+        """
         if not self._candidate_providers:
             logger.warning("No candidate providers configured")
-            return []
+            return [], {}
 
         all_results: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
+        ranked_lists: dict[str, list[dict[str, Any]]] = {}
 
         queries_to_search = sub_queries if sub_queries else [query]
 
-        for q in queries_to_search:
-            for provider in self._candidate_providers:
+        for provider in self._candidate_providers:
+            provider_results: list[dict[str, Any]] = []
+
+            for q in queries_to_search:
                 try:
                     results = provider.search(
                         query=q,
@@ -314,16 +340,26 @@ class RetrievalPipeline:
                         if r.get("id") not in seen_ids:
                             seen_ids.add(r.get("id"))
                             all_results.append(r)
+                        # 收集该 provider 的结果用于 RRF
+                        if r.get("id") not in [x.get("id") for x in provider_results]:
+                            provider_results.append(r)
                 except Exception as e:
                     logger.warning(f"Stage2 [{provider.name}] failed for '{q}': {e}")
 
+            # 按分数排序并存储
+            provider_results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+            ranked_lists[provider.name] = provider_results
+
         all_results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-        return all_results
+        self._ranked_lists = ranked_lists
+
+        return all_results, ranked_lists
 
     def _stage3_rank_and_filter(
         self,
         query: str,
         candidates: list[dict[str, Any]],
+        ranked_lists: dict[str, list[dict[str, Any]]],
         effective_threshold: float,
         effective_top_k: int,
         use_mmr: bool,
@@ -332,6 +368,7 @@ class RetrievalPipeline:
         """Stage 3: 排序筛选"""
         current_candidates = candidates
 
+        # 执行重排序（改变顺序）
         for provider in self._reranking_providers:
             try:
                 if provider.name == RerankingProviderName.MMR_RERANKER:
@@ -342,6 +379,14 @@ class RetrievalPipeline:
                             lambda_param=mmr_lambda,
                             top_k=effective_top_k * 2,
                         )
+                elif provider.name == RerankingProviderName.RRF_RERANKER:
+                    # RRF 需要多路检索结果
+                    current_candidates = provider.rerank(
+                        query=query,
+                        candidates=current_candidates,
+                        ranked_lists=list(ranked_lists.values()),
+                        top_k=effective_top_k * 2,
+                    )
                 else:
                     current_candidates = provider.rerank(
                         query=query,
@@ -349,15 +394,29 @@ class RetrievalPipeline:
                         top_k=effective_top_k * 2,
                     )
             except Exception as e:
-                logger.warning(f"Stage3 [{provider.name}] failed: {e}")
+                logger.warning(f"Stage3 reranking [{provider.name}] failed: {e}")
 
-        filtered = [
-            doc for doc in current_candidates
-            if doc.get("score", 0.0) >= effective_threshold
-        ]
+        # 执行过滤（筛选文档）
+        for provider in self._filter_providers:
+            try:
+                current_candidates = provider.filter(
+                    candidates=current_candidates,
+                    threshold=effective_threshold,
+                    top_k=effective_top_k,
+                )
+            except Exception as e:
+                logger.warning(f"Stage3 filtering [{provider.name}] failed: {e}")
 
-        filtered.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-        return filtered[:effective_top_k]
+        # 如果没有配置 filter_providers，使用默认的分数阈值过滤
+        if not self._filter_providers:
+            filtered = [
+                doc for doc in current_candidates
+                if doc.get("score", 0.0) >= effective_threshold
+            ]
+            filtered.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+            current_candidates = filtered
+
+        return current_candidates[:effective_top_k]
 
     def _check_initialized(self) -> None:
         """检查是否已初始化"""
