@@ -29,12 +29,14 @@ class RAGPipeline:
     def initialize(self) -> None:
         """初始化所有组件"""
         self.retrieval.initialize()
+        self.augmentation.initialize()
         self.generation.initialize()
         logger.info("RAGPipeline initialized")
 
     def shutdown(self) -> None:
         """关闭所有组件"""
         self.retrieval.shutdown()
+        self.augmentation.shutdown()
         self.generation.shutdown()
         logger.info("RAGPipeline shut down")
 

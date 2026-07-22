@@ -2,7 +2,9 @@
 """
 Similarity Search Engine Module
 
-相似度搜索算法工具类 — 封装多种向量距离和相似度计算算法
+相似度搜索算法工具类
+
+— 封装多种向量距离和相似度计算算法
 """
 
 from typing import List, Optional
@@ -30,16 +32,11 @@ class SimilaritySearchEngine:
     向量相似度搜索引擎
 
     支持多种距离度量方式，用于计算查询向量与文档向量之间的相似度。
-    提供实例化和静态两种调用方式。
 
     使用方式：
-        # 实例化（推荐，指定默认距离类型）
         engine = SimilaritySearchEngine(distance_type=DistanceType.COSINE)
         score = engine.compute(query_vector, doc_vector)
         scores = engine.compute_batch(query_vector, doc_vectors)
-
-        # 静态方法（兼容旧 API）
-        score = SimilaritySearchEngine.cosine_similarity(q, d)
     """
 
     def __init__(
@@ -103,45 +100,6 @@ class SimilaritySearchEngine:
         dtype = distance_type or self._distance_type
         return self._compute_batch_impl(query_vector, doc_vectors, dtype)
 
-    # === 静态方法（兼容旧 API） ===
-
-    @staticmethod
-    def cosine_similarity(
-        query_vector: List[float],
-        doc_vector: List[float],
-    ) -> float:
-        """计算余弦相似度"""
-        query = np.array(query_vector)
-        doc = np.array(doc_vector)
-
-        norm_query = np.linalg.norm(query)
-        norm_doc = np.linalg.norm(doc)
-
-        if norm_query == 0 or norm_doc == 0:
-            return 0.0
-
-        return float(np.dot(query, doc) / (norm_query * norm_doc))
-
-    @staticmethod
-    def euclidean_distance(
-        query_vector: List[float],
-        doc_vector: List[float],
-    ) -> float:
-        """计算欧氏距离"""
-        query = np.array(query_vector)
-        doc = np.array(doc_vector)
-        return float(np.linalg.norm(query - doc))
-
-    @staticmethod
-    def dot_product(
-        query_vector: List[float],
-        doc_vector: List[float],
-    ) -> float:
-        """计算点积"""
-        query = np.array(query_vector)
-        doc = np.array(doc_vector)
-        return float(np.dot(query, doc))
-
     # === 内部实现 ===
 
     def _compute_impl(
@@ -151,13 +109,19 @@ class SimilaritySearchEngine:
         distance_type: DistanceType,
     ) -> float:
         """内部实现：单条相似度计算"""
+        query = np.array(query_vector)
+        doc = np.array(doc_vector)
+
         if distance_type == DistanceType.COSINE:
-            return self.cosine_similarity(query_vector, doc_vector)
+            norm_query = np.linalg.norm(query)
+            norm_doc = np.linalg.norm(doc)
+            if norm_query == 0 or norm_doc == 0:
+                return 0.0
+            return float(np.dot(query, doc) / (norm_query * norm_doc))
         elif distance_type == DistanceType.EUCLIDEAN:
-            distance = self.euclidean_distance(query_vector, doc_vector)
-            return 1.0 / (1.0 + distance)
+            return float(1.0 / (1.0 + np.linalg.norm(query - doc)))
         elif distance_type == DistanceType.DOT:
-            return self.dot_product(query_vector, doc_vector)
+            return float(np.dot(query, doc))
         else:
             raise RetrievalError(f"Unsupported distance type: {distance_type}")
 
@@ -193,7 +157,3 @@ class SimilaritySearchEngine:
 
         else:
             raise RetrievalError(f"Unsupported distance type: {distance_type}")
-
-
-# === 向后兼容别名 ===
-SimilarityCalculator = SimilaritySearchEngine

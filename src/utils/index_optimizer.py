@@ -2,7 +2,9 @@
 """
 Vector Index Optimizer Module
 
-向量索引优化工具 — 提供向量索引调优、内存估算等功能
+向量索引优化工具
+
+— 提供向量索引调优、内存估算等功能
 """
 
 from dataclasses import dataclass

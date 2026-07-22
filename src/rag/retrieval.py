@@ -15,14 +15,18 @@ from retrieval.pipeline import RetrievalPipeline
 from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
 from retrieval.ranking.mmr import MMRReranker
 from retrieval.ranking.score_filter import ScoreFilter
+from retrieval.understanding.expansion import SynonymExpander
+from retrieval.understanding.rewrite import SimpleQueryRewriter
 from utils.similarity import SimilaritySearchEngine, DistanceType
 
 
 class Retrieval:
     """
-    检索器 — 向量检索和重排序
+    检索器
 
-    本类作为上层 API 入口，委托至 RetrievalPipeline 执行三阶段检索流水线。
+    本类作为上层 API 入口，委托至 RetrievalPipeline 执行三阶段检索流水线：
+    Stage 1 查询理解 → Stage 2 候选召回 → Stage 3 排序筛选
+    （增强由 RAGPipeline 的 Augmentation 组件独立完成）
     """
 
     def __init__(
@@ -48,18 +52,29 @@ class Retrieval:
         self._initialized = False
 
         # ── 构建默认的检索流水线 ──────────────────────────
+        # Stage 1: 查询理解
+        understanding_providers = [
+            SynonymExpander(),           # 同义词扩展，增加召回
+            SimpleQueryRewriter(),       # 简单规则改写，无 LLM 依赖
+        ]
+
+        # Stage 2: 候选召回
         vector_retrieval = ChromaVectorRetrieval(
             vector_repo=vector_repo,
             embedding_model=embedding_model,
             top_k=default_top_k,
         )
 
+        # Stage 3: 排序筛选
+        reranking_providers = [
+            MMRReranker(distance_type=DistanceType.COSINE),
+            ScoreFilter(threshold=default_threshold),
+        ]
+
         self._pipeline = RetrievalPipeline(
+            understanding_providers=understanding_providers,
             candidate_providers=[vector_retrieval],
-            reranking_providers=[
-                MMRReranker(distance_type=DistanceType.COSINE),
-                ScoreFilter(threshold=default_threshold),
-            ],
+            reranking_providers=reranking_providers,
             similarity_engine=SimilaritySearchEngine(distance_type=DistanceType.COSINE),
             default_top_k=default_top_k,
             default_threshold=default_threshold,

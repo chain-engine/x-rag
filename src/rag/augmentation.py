@@ -34,6 +34,14 @@ class Augmentation:
         self._user_prompt_template = user_prompt_template or self.DEFAULT_USER_PROMPT_TEMPLATE
         self._max_context_length = max_context_length
 
+    def initialize(self) -> None:
+        """初始化增强器（无需加载资源，保持接口一致性）"""
+        pass
+
+    def shutdown(self) -> None:
+        """关闭增强器（无需释放资源，保持接口一致性）"""
+        pass
+
     def augment(
         self,
         query: str,

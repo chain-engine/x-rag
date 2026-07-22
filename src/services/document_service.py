@@ -120,7 +120,7 @@ class DocumentService(BaseService):
         document_id = str(uuid.uuid4())
 
         try:
-            # 保存文档元数据
+            # 保存文档元数据（Json格式）
             logger.info(f"Indexing document {document_id}: saving metadata...")
             self._doc_repo.save({
                 "document_id": document_id,
