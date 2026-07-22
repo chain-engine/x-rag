@@ -19,12 +19,7 @@ from core.logger import logger
 from core.exceptions import DocumentError
 from chunking import get_chunking_provider
 from infras.embedding.bge_model import BGEEmbeddingModel
-from constants.rag import (
-    DOC_STATUS_PENDING,
-    DOC_STATUS_PROCESSING,
-    DOC_STATUS_COMPLETED,
-    DOC_STATUS_FAILED,
-)
+from constants.rag import DocStatus
 
 
 class DocumentService(BaseService):
@@ -127,7 +122,7 @@ class DocumentService(BaseService):
                 "file_name": file_name,
                 "file_type": file_type,
                 "file_size": file_size,
-                "status": DOC_STATUS_PROCESSING,
+                "status": DocStatus.PROCESSING.mark,
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
                 "metadata": metadata,
@@ -168,7 +163,7 @@ class DocumentService(BaseService):
 
             # 更新文档状态
             self._doc_repo.update(document_id, {
-                "status": DOC_STATUS_COMPLETED,
+                "status": DocStatus.COMPLETED.mark,
                 "chunk_count": len(chunks),
                 "updated_at": datetime.utcnow().isoformat(),
             })
@@ -185,7 +180,7 @@ class DocumentService(BaseService):
             import traceback
             logger.error(f"Failed to index document {document_id}: {e}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            self._doc_repo.update(document_id, {"status": DOC_STATUS_FAILED})
+            self._doc_repo.update(document_id, {"status": DocStatus.FAILED.mark})
             raise DocumentError(f"Failed to index document {document_id}: {e}") from e
 
     def delete_document(self, document_id: str) -> dict[str, Any]:

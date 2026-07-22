@@ -17,7 +17,8 @@ from slowapi.errors import RateLimitExceeded
 
 from core.logger import logger
 from core.config import settings
-from constants.common import HEADER_REQUEST_ID
+from constants.common import HeaderType
+
 
 # 限流器实例
 limiter = Limiter(
@@ -34,11 +35,11 @@ async def request_id_middleware(request: Request, call_next: Callable) -> Respon
 
     为每个请求生成唯一的请求ID
     """
-    request_id: str = request.headers.get(HEADER_REQUEST_ID) or str(uuid.uuid4())
+    request_id: str = request.headers.get(HeaderType.REQUEST_ID.mark) or str(uuid.uuid4())
     request.state.request_id = request_id
 
     response: Response = await call_next(request)
-    response.headers[HEADER_REQUEST_ID] = request_id
+    response.headers[HeaderType.REQUEST_ID.mark] = request_id
 
     logger.info(f"Request {request_id}: {request.method} {request.url.path}")
     return response

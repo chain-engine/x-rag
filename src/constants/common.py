@@ -6,34 +6,36 @@ Common Constants Module
 通用常量定义，不依赖于特定业务领域
 """
 
+from .base import BaseEnum
 from typing import Final
 
-# ====================================
-# HTTP 状态码常量
-# ====================================
-HTTP_OK: Final[int] = 200
-HTTP_CREATED: Final[int] = 201
-HTTP_BAD_REQUEST: Final[int] = 400
-HTTP_UNAUTHORIZED: Final[int] = 401
-HTTP_FORBIDDEN: Final[int] = 403
-HTTP_NOT_FOUND: Final[int] = 404
-HTTP_CONFLICT: Final[int] = 409
-HTTP_TOO_MANY_REQUESTS: Final[int] = 429
-HTTP_INTERNAL_ERROR: Final[int] = 500
 
-# ====================================
-# 响应消息常量
-# ====================================
-MSG_SUCCESS: Final[str] = "success"
-MSG_CREATED: Final[str] = "created"
-MSG_DELETED: Final[str] = "deleted"
-MSG_UPDATED: Final[str] = "updated"
-MSG_NOT_FOUND: Final[str] = "not found"
-MSG_BAD_REQUEST: Final[str] = "bad request"
-MSG_UNAUTHORIZED: Final[str] = "unauthorized"
-MSG_FORBIDDEN: Final[str] = "forbidden"
-MSG_CONFLICT: Final[str] = "conflict"
-MSG_INTERNAL_ERROR: Final[str] = "internal server error"
+class HttpStatus(BaseEnum):
+    """HTTP 状态码枚举"""
+    OK = 200, "成功"
+    CREATED = 201, "已创建"
+    BAD_REQUEST = 400, "请求错误"
+    UNAUTHORIZED = 401, "未授权"
+    FORBIDDEN = 403, "禁止访问"
+    NOT_FOUND = 404, "资源不存在"
+    CONFLICT = 409, "资源冲突"
+    TOO_MANY_REQUESTS = 429, "请求过于频繁"
+    INTERNAL_ERROR = 500, "服务器内部错误"
+
+
+class ResponseMsg(BaseEnum):
+    """响应消息枚举"""
+    SUCCESS = "success", "操作成功"
+    CREATED = "created", "创建成功"
+    DELETED = "deleted", "删除成功"
+    UPDATED = "updated", "更新成功"
+    NOT_FOUND = "not found", "资源不存在"
+    BAD_REQUEST = "bad request", "请求错误"
+    UNAUTHORIZED = "unauthorized", "未授权"
+    FORBIDDEN = "forbidden", "禁止访问"
+    CONFLICT = "conflict", "资源冲突"
+    INTERNAL_ERROR = "internal server error", "服务器内部错误"
+
 
 # ====================================
 # 时间格式常量
@@ -61,9 +63,9 @@ LONG_TIMEOUT: Final[int] = 300
 EMAIL_REGEX: Final[str] = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
 PHONE_REGEX: Final[str] = r"^1[3-9]\d{9}$"
 
-# ====================================
-# 请求头常量
-# ====================================
-HEADER_REQUEST_ID: Final[str] = "X-Request-ID"
-HEADER_AUTHORIZATION: Final[str] = "Authorization"
-HEADER_CONTENT_TYPE: Final[str] = "Content-Type"
+
+class HeaderType(BaseEnum):
+    """HTTP 请求头类型枚举"""
+    REQUEST_ID = "X-Request-ID", "请求ID"
+    AUTHORIZATION = "Authorization", "授权令牌"
+    CONTENT_TYPE = "Content-Type", "内容类型"

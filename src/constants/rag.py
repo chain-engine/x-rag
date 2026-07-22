@@ -6,34 +6,29 @@ RAG Constants Module
 RAG核心模块相关的常量
 """
 
-from enum import Enum
+from .base import BaseEnum
 from typing import Final
 
-# ====================================
-# 文档状态常量
-# ====================================
-DOC_STATUS_PENDING: Final[str] = "pending"
-DOC_STATUS_PROCESSING: Final[str] = "processing"
-DOC_STATUS_COMPLETED: Final[str] = "completed"
-DOC_STATUS_FAILED: Final[str] = "failed"
-DOC_STATUS_DELETED: Final[str] = "deleted"
 
-# ====================================
-# 文档类型常量
-# ====================================
-DOC_TYPE_TXT: Final[str] = "txt"
-DOC_TYPE_MD: Final[str] = "md"
-DOC_TYPE_PDF: Final[str] = "pdf"
-DOC_TYPE_DOCX: Final[str] = "docx"
-DOC_TYPE_HTML: Final[str] = "html"
+class DocStatus(BaseEnum):
+    """文档状态枚举"""
+    PENDING = "pending", "待处理"
+    PROCESSING = "processing", "处理中"
+    COMPLETED = "completed", "已完成"
+    FAILED = "failed", "处理失败"
+    DELETED = "deleted", "已删除"
 
-SUPPORTED_DOC_TYPES: Final[set[str]] = {
-    DOC_TYPE_TXT,
-    DOC_TYPE_MD,
-    DOC_TYPE_PDF,
-    DOC_TYPE_DOCX,
-    DOC_TYPE_HTML,
-}
+
+class DocType(BaseEnum):
+    """文档类型枚举"""
+    TXT = "txt", "纯文本"
+    MD = "md", "Markdown"
+    PDF = "pdf", "PDF文档"
+    DOCX = "docx", "Word文档"
+    HTML = "html", "HTML网页"
+
+
+SUPPORTED_DOC_TYPES: Final[set[str]] = set(DocType.get_all_marks())
 
 # ====================================
 # 距离度量方式
@@ -69,38 +64,24 @@ DEFAULT_CHUNK_SIZE: Final[int] = 512
 DEFAULT_CHUNK_OVERLAP: Final[int] = 50
 
 
-# ====================================
-# 距离度量类型枚举
-# ====================================
-class DistanceType(str, Enum):
-    """距离度量类型"""
-    COSINE = DISTANCE_COSINE
-    EUCLIDEAN = DISTANCE_EUCLIDEAN
-    DOT = DISTANCE_DOT
+class DistanceType(BaseEnum):
+    """距离度量类型枚举"""
+    COSINE = "cosine", "余弦距离"
+    EUCLIDEAN = "euclidean", "欧氏距离"
+    DOT = "dot", "点积"
 
 
-# ====================================
-# 排序 Provider 名称常量
-# ====================================
-class RerankingProviderName:
-    """排序 Provider 名称常量"""
-    MMR_RERANKER: Final[str] = "mmr_reranker"
-    RRF_RERANKER: Final[str] = "rrf_reranker"
-    SEMANTIC_RERANKER: Final[str] = "semantic_reranker"
-    SCORE_FILTER: Final[str] = "score_filter"
+class RerankingProviderName(BaseEnum):
+    """排序 Provider 名称枚举"""
+    MMR_RERANKER = "mmr_reranker", "MMR重排序"
+    RRF_RERANKER = "rrf_reranker", "RRF重排序"
+    SEMANTIC_RERANKER = "semantic_reranker", "语义重排序"
+    SCORE_FILTER = "score_filter", "分数过滤"
 
 
 __all__ = [
-    "DOC_STATUS_PENDING",
-    "DOC_STATUS_PROCESSING",
-    "DOC_STATUS_COMPLETED",
-    "DOC_STATUS_FAILED",
-    "DOC_STATUS_DELETED",
-    "DOC_TYPE_TXT",
-    "DOC_TYPE_MD",
-    "DOC_TYPE_PDF",
-    "DOC_TYPE_DOCX",
-    "DOC_TYPE_HTML",
+    "DocStatus",
+    "DocType",
     "SUPPORTED_DOC_TYPES",
     "DISTANCE_COSINE",
     "DISTANCE_EUCLIDEAN",

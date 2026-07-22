@@ -9,7 +9,7 @@ Response Schema Module
 from typing import Any, Generic, TypeVar
 from pydantic import BaseModel, Field, ConfigDict
 
-from constants.common import HTTP_OK
+from constants.common import HttpStatus
 
 T = TypeVar("T")
 
@@ -19,7 +19,7 @@ class ResponseModel(BaseModel, Generic[T]):
 
     标准API响应结构
     """
-    code: int = Field(default=HTTP_OK, description="响应状态码", examples=[200])
+    code: int = Field(default=HttpStatus.OK.value, description="响应状态码", examples=[200])
     message: str = Field(default="success", description="响应消息", examples=["success"])
     data: T | None = Field(default=None, description="响应数据")
     request_id: str | None = Field(default=None, description="请求ID")
@@ -98,7 +98,7 @@ class ErrorResponse(BaseModel):
 def success_response(
     data: Any = None,
     message: str = "success",
-    code: int = HTTP_OK,
+    code: int = HttpStatus.OK.value,
     request_id: str | None = None,
 ) -> dict[str, Any]:
     """构造成功响应"""

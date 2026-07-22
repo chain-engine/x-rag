@@ -5,6 +5,7 @@ Keyword Retrieval Module
 关键词检索 — 基于 BM25 算法的召回
 """
 
+from abc import abstractmethod
 from typing import Any, Optional
 
 from retrieval.candidate.base import BaseRetrievalProvider

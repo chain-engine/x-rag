@@ -24,9 +24,9 @@ class BaseEnum(Enum):
         return self._mark
 
     @property
-    def value(self) -> str:
-        """重写 value，使枚举可直接赋值给 str 类型字段（如 Pydantic BaseModel）"""
-        return str(self._mark)
+    def value(self) -> int | str:
+        """重写 value，使枚举可直接赋值给 int 或 str 类型字段（如 Pydantic BaseModel）"""
+        return self._mark
 
     @property
     def desc(self) -> str:
@@ -38,8 +38,12 @@ class BaseEnum(Enum):
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Enum):
             return super().__eq__(other)
-        if isinstance(other, str):
+        if isinstance(other, str) and isinstance(self._mark, str):
             return self._mark == other
+        if isinstance(other, int) and isinstance(self._mark, int):
+            return self._mark == other
+        if isinstance(other, str):
+            return str(self._mark) == other
         return NotImplemented
 
     def __hash__(self) -> int:

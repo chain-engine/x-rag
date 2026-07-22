@@ -6,28 +6,13 @@ Constants Package
 统一管理项目中的常量，避免魔法数值和硬编码字符串
 """
 
-from constants.common import (
-    # HTTP Status Codes
-    HTTP_OK,
-    HTTP_CREATED,
-    HTTP_BAD_REQUEST,
-    HTTP_UNAUTHORIZED,
-    HTTP_FORBIDDEN,
-    HTTP_NOT_FOUND,
-    HTTP_CONFLICT,
-    HTTP_TOO_MANY_REQUESTS,
-    HTTP_INTERNAL_ERROR,
-    # Response Messages
-    MSG_SUCCESS,
-    MSG_CREATED,
-    MSG_DELETED,
-    MSG_UPDATED,
-    MSG_NOT_FOUND,
-    MSG_BAD_REQUEST,
-    MSG_UNAUTHORIZED,
-    MSG_FORBIDDEN,
-    MSG_CONFLICT,
-    MSG_INTERNAL_ERROR,
+from .base import BaseEnum
+
+from .common import (
+    # HTTP Status Enum
+    HttpStatus,
+    # Response Messages Enum
+    ResponseMsg,
     # Date/Time Formats
     DATE_FORMAT,
     DATETIME_FORMAT,
@@ -42,31 +27,19 @@ from constants.common import (
     # Regex
     EMAIL_REGEX,
     PHONE_REGEX,
-    # Headers
-    HEADER_REQUEST_ID,
-    HEADER_AUTHORIZATION,
-    HEADER_CONTENT_TYPE,
+    # Headers Enum
+    HeaderType,
 )
 
-from constants.env import (
-    ENV_DEVELOPMENT,
-    ENV_TEST,
-    ENV_PRODUCTION,
+from .env import (
+    Environment,
 )
 
-from constants.rag import (
-    # Document Status
-    DOC_STATUS_PENDING,
-    DOC_STATUS_PROCESSING,
-    DOC_STATUS_COMPLETED,
-    DOC_STATUS_FAILED,
-    DOC_STATUS_DELETED,
-    # Document Types
-    DOC_TYPE_TXT,
-    DOC_TYPE_MD,
-    DOC_TYPE_PDF,
-    DOC_TYPE_DOCX,
-    DOC_TYPE_HTML,
+from .rag import (
+    # Document Status Enum
+    DocStatus,
+    # Document Types Enum
+    DocType,
     SUPPORTED_DOC_TYPES,
     # Distance Types
     DISTANCE_COSINE,
@@ -81,47 +54,42 @@ from constants.rag import (
     # Prompt Templates
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_USER_PROMPT_TEMPLATE,
+    # Enums
+    DistanceType,
+    RerankingProviderName,
 )
 
-from constants.embedding import (
+from .embedding import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_EMBEDDING_DEVICE,
     DEFAULT_EMBEDDING_BATCH_SIZE,
     DEFAULT_EMBEDDING_CACHE_SIZE,
 )
 
-from constants.vector_store import (
-    VECTOR_STORE_CHROMA,
+from .vector_store import (
+    VectorStoreType,
     DEFAULT_COLLECTION_NAME,
     DEFAULT_DISTANCE,
 )
 
-from constants.generation import (
+from .generation import (
+    LLMProviderType,
     DEFAULT_TEMPERATURE,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
-    LLM_PROVIDER_DEEPSEEK,
-    LLM_PROVIDER_DOUBAO,
-    LLM_PROVIDER_ALIYUN,
-    LLM_PROVIDER_MIMO,
-    LLM_PROVIDER_MOCK,
     SUPPORTED_LLM_PROVIDERS,
 )
 
-from constants.rate_limit import (
+from .rate_limit import (
     DEFAULT_REQUESTS_PER_MINUTE,
     DEFAULT_REQUESTS_PER_HOUR,
 )
 
-from constants.log import (
-    LOG_DEBUG,
-    LOG_INFO,
-    LOG_WARNING,
-    LOG_ERROR,
-    LOG_CRITICAL,
+from .log import (
+    LogLevel,
 )
 
-from constants.server import (
+from .server import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     API_V1_PREFIX,
@@ -131,27 +99,12 @@ from constants.server import (
 )
 
 __all__ = [
-    # HTTP Status Codes
-    "HTTP_OK",
-    "HTTP_CREATED",
-    "HTTP_BAD_REQUEST",
-    "HTTP_UNAUTHORIZED",
-    "HTTP_FORBIDDEN",
-    "HTTP_NOT_FOUND",
-    "HTTP_CONFLICT",
-    "HTTP_TOO_MANY_REQUESTS",
-    "HTTP_INTERNAL_ERROR",
+    # BaseEnum
+    "BaseEnum",
+    # HTTP Status
+    "HttpStatus",
     # Response Messages
-    "MSG_SUCCESS",
-    "MSG_CREATED",
-    "MSG_DELETED",
-    "MSG_UPDATED",
-    "MSG_NOT_FOUND",
-    "MSG_BAD_REQUEST",
-    "MSG_UNAUTHORIZED",
-    "MSG_FORBIDDEN",
-    "MSG_CONFLICT",
-    "MSG_INTERNAL_ERROR",
+    "ResponseMsg",
     # Date/Time Formats
     "DATE_FORMAT",
     "DATETIME_FORMAT",
@@ -167,25 +120,13 @@ __all__ = [
     "EMAIL_REGEX",
     "PHONE_REGEX",
     # Headers
-    "HEADER_REQUEST_ID",
-    "HEADER_AUTHORIZATION",
-    "HEADER_CONTENT_TYPE",
+    "HeaderType",
     # Environment
-    "ENV_DEVELOPMENT",
-    "ENV_TEST",
-    "ENV_PRODUCTION",
+    "Environment",
     # Document Status
-    "DOC_STATUS_PENDING",
-    "DOC_STATUS_PROCESSING",
-    "DOC_STATUS_COMPLETED",
-    "DOC_STATUS_FAILED",
-    "DOC_STATUS_DELETED",
+    "DocStatus",
     # Document Types
-    "DOC_TYPE_TXT",
-    "DOC_TYPE_MD",
-    "DOC_TYPE_PDF",
-    "DOC_TYPE_DOCX",
-    "DOC_TYPE_HTML",
+    "DocType",
     "SUPPORTED_DOC_TYPES",
     # Distance Types
     "DISTANCE_COSINE",
@@ -200,12 +141,11 @@ __all__ = [
     # Prompt Templates
     "DEFAULT_SYSTEM_PROMPT",
     "DEFAULT_USER_PROMPT_TEMPLATE",
+    # RAG Enums
+    "DistanceType",
+    "RerankingProviderName",
     # LLM Providers
-    "LLM_PROVIDER_DEEPSEEK",
-    "LLM_PROVIDER_DOUBAO",
-    "LLM_PROVIDER_ALIYUN",
-    "LLM_PROVIDER_MIMO",
-    "LLM_PROVIDER_MOCK",
+    "LLMProviderType",
     "SUPPORTED_LLM_PROVIDERS",
     # Embedding
     "DEFAULT_EMBEDDING_MODEL",
@@ -213,7 +153,7 @@ __all__ = [
     "DEFAULT_EMBEDDING_BATCH_SIZE",
     "DEFAULT_EMBEDDING_CACHE_SIZE",
     # Vector Store
-    "VECTOR_STORE_CHROMA",
+    "VectorStoreType",
     "DEFAULT_COLLECTION_NAME",
     "DEFAULT_DISTANCE",
     # Generation
@@ -224,11 +164,7 @@ __all__ = [
     "DEFAULT_REQUESTS_PER_MINUTE",
     "DEFAULT_REQUESTS_PER_HOUR",
     # Log Levels
-    "LOG_DEBUG",
-    "LOG_INFO",
-    "LOG_WARNING",
-    "LOG_ERROR",
-    "LOG_CRITICAL",
+    "LogLevel",
     # Server
     "DEFAULT_HOST",
     "DEFAULT_PORT",
