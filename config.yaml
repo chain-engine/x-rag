@@ -40,6 +40,8 @@ vector_store:
 # 文本切分配置
 # ====================================
 text_splitter:
+  provider: langchain  # langchain | llamaindex
+  strategy: recursive  # recursive | character | token | semantic（langchain）/ sentence | token | semantic | markdown（llamaindex）
   chunk_size: 512
   chunk_overlap: 50
   separators:
@@ -69,6 +71,27 @@ generation:
   temperature: 0.7
   max_tokens: 2000
   timeout: 30
+
+# ====================================
+# LLM 提供商配置
+# ====================================
+llm_providers:
+  # DeepSeek
+  deepseek_api_key: your-deepseek-api-key
+  deepseek_api_base: https://api.deepseek.com/v1
+  deepseek_model_name: deepseek-chat
+  # 豆包 (字节跳动)
+  doubao_api_key: your-doubao-api-key
+  doubao_api_base: https://ark.cn-beijing.volces.com/api/v3
+  doubao_model_name: doubao-pro-32k
+  # 阿里云百炼 (通义千问)
+  aliyun_api_key: your-aliyun-api-key
+  aliyun_api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
+  aliyun_model_name: qwen-plus
+  # 小米 Mimo
+  mimo_api_key: your-mimo-api-key
+  mimo_api_base: https://api.xiaomi.com
+  mimo_model_name: mimo-v2.5-pro
 
 # ====================================
 # API配置

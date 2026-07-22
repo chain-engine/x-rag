@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Document Service Module
+
+文档业务服务 - 编排文档索引和管理全流程
+包含文档上传、索引、删除、查询等业务逻辑
+"""
+
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from services.base_service import BaseService
+from repositories.vector_repository import VectorRepository
+from repositories.document_repository import DocumentRepository
+from core.logger import logger
+from core.exceptions import DocumentError
+from chunking import get_chunking_provider
+from infras.embedding.bge_model import CachedBGEEmbeddingModel
+from constants.rag import (
+    DOC_STATUS_PENDING,
+    DOC_STATUS_PROCESSING,
+    DOC_STATUS_COMPLETED,
+    DOC_STATUS_FAILED,
+)
+
+
+class DocumentService(BaseService):
+    """文档业务服务 - 封装文档索引和管理流程"""
+
+    def __init__(
+        self,
+        vector_repo: VectorRepository,
+        doc_repo: DocumentRepository,
+        chunk_size: int = 512,
+        chunk_overlap: int = 50,
+        chunking_provider: str = "langchain",
+        chunking_strategy: str = "recursive",
+    ):
+        self._vector_repo = vector_repo
+        self._doc_repo = doc_repo
+        self._chunk_size = chunk_size
+        self._chunk_overlap = chunk_overlap
+        self._initialized = False
+        self._embedding_model: CachedBGEEmbeddingModel | None = None
+        self._chunking_provider = get_chunking_provider(
+            provider_name=chunking_provider,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            strategy=chunking_strategy,
+        )
+        logger.info(f"DocumentService initialized with chunking provider: {chunking_provider}/{chunking_strategy}")
+
+    def initialize(self) -> None:
+        """初始化服务"""
+        self._vector_repo.initialize()
+        self._doc_repo.initialize()
+        self._initialized = True
+        logger.info("DocumentService initialized (embedding model will be loaded on first use)")
+
+    def shutdown(self) -> None:
+        """关闭服务"""
+        if self._initialized:
+            self._vector_repo.shutdown()
+            self._doc_repo.shutdown()
+            if self._embedding_model:
+                self._embedding_model.shutdown()
+            self._initialized = False
+            logger.info("DocumentService shut down")
+
+    def get_stats(self) -> dict[str, Any]:
+        """获取统计信息"""
+        return {
+            "type": "document",
+            "chunk_size": self._chunk_size,
+            "chunk_overlap": self._chunk_overlap,
+            "vector_stats": self._vector_repo.get_stats(),
+            "document_stats": self._doc_repo.get_stats(),
+        }
+
+    def _get_embedding_model(self) -> CachedBGEEmbeddingModel:
+        """延迟获取 embedding model"""
+        if self._embedding_model is None:
+            logger.info("Loading embedding model on first use...")
+            self._embedding_model = CachedBGEEmbeddingModel()
+        return self._embedding_model
+
+    def _check_initialized(self) -> None:
+        """检查服务是否已初始化"""
+        if not self._initialized:
+            raise RuntimeError("DocumentService not initialized. Call initialize() first.")
+
+    def upload_document(
+        self,
+        text: str,
+        file_name: str = "",
+        file_type: str = "txt",
+        file_size: int = 0,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """上传并索引文档
+
+        Args:
+            text: 文档文本内容
+            file_name: 文件名
+            file_type: 文件类型
+            file_size: 文件大小
+            metadata: 额外元数据
+
+        Returns:
+            索引结果
+        """
+        self._check_initialized()
+
+        if metadata is None:
+            metadata = {}
+
+        document_id = str(uuid.uuid4())
+
+        try:
+            # 保存文档元数据
+            logger.info(f"Indexing document {document_id}: saving metadata...")
+            self._doc_repo.save({
+                "document_id": document_id,
+                "file_name": file_name,
+                "file_type": file_type,
+                "file_size": file_size,
+                "status": DOC_STATUS_PROCESSING,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+                "metadata": metadata,
+            })
+            logger.info(f"Document {document_id} metadata saved")
+
+            # 切分文本
+            logger.info(f"Document {document_id}: splitting text...")
+            chunks = self._chunking_provider.chunk_text_with_metadata(
+                text=text,
+                document_id=document_id,
+                metadata=metadata,
+            )
+            logger.info(f"Document {document_id}: split into {len(chunks)} chunks")
+
+            if not chunks:
+                raise DocumentError(f"No chunks generated for document {document_id}")
+
+            # 提取文本
+            chunk_texts = [chunk.content for chunk in chunks]
+
+            # 向量化
+            logger.info(f"Document {document_id}: encoding {len(chunk_texts)} chunks...")
+            embeddings = self._get_embedding_model().encode(chunk_texts, normalize=True)
+            logger.info(f"Document {document_id}: encoded successfully")
+
+            # 存储向量
+            ids = [chunk.chunk_id for chunk in chunks]
+            metadatas = [
+                {
+                    "document_id": document_id,
+                    "chunk_index": str(idx),
+                    **chunk.metadata,
+                }
+                for idx, chunk in enumerate(chunks)
+            ]
+            self._vector_repo.add(ids, embeddings, chunk_texts, metadatas)
+
+            # 更新文档状态
+            self._doc_repo.update(document_id, {
+                "status": DOC_STATUS_COMPLETED,
+                "chunk_count": len(chunks),
+                "updated_at": datetime.utcnow().isoformat(),
+            })
+
+            logger.info(f"Successfully indexed document {document_id}")
+
+            return {
+                "document_id": document_id,
+                "status": "completed",
+                "chunk_count": len(chunks),
+            }
+
+        except Exception as e:
+            import traceback
+            logger.error(f"Failed to index document {document_id}: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            self._doc_repo.update(document_id, {"status": DOC_STATUS_FAILED})
+            raise DocumentError(f"Failed to index document {document_id}: {e}") from e
+
+    def delete_document(self, document_id: str) -> dict[str, Any]:
+        """删除文档
+
+        Args:
+            document_id: 文档ID
+
+        Returns:
+            删除结果
+        """
+        self._check_initialized()
+
+        try:
+            vector_count = self._vector_repo.delete_by_document_id(document_id)
+            self._doc_repo.delete(document_id)
+
+            logger.info(f"Successfully deleted document {document_id} ({vector_count} vectors)")
+
+            return {
+                "document_id": document_id,
+                "status": "deleted",
+                "vector_count": vector_count,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to delete document {document_id}: {e}")
+            raise DocumentError(f"Failed to delete document {document_id}: {e}") from e
+
+    def get_document(self, document_id: str) -> dict[str, Any]:
+        """获取文档详情
+
+        Args:
+            document_id: 文档ID
+
+        Returns:
+            文档详情
+        """
+        self._check_initialized()
+
+        document = self._doc_repo.load(document_id)
+
+        if document is None:
+            return {
+                "document_id": document_id,
+                "status": "not_found",
+                "message": "Document not found",
+            }
+
+        vectors = self._vector_repo.get_by_document_id(document_id)
+
+        chunks = []
+        for vec in vectors:
+            text = vec.get("text", "")
+            chunks.append({
+                "chunk_id": vec.get("id"),
+                "text": text[:200] + "..." if len(text) > 200 else text,
+                "metadata": vec.get("metadata", {}),
+            })
+
+        return {
+            "document_id": document.get("document_id"),
+            "file_name": document.get("file_name"),
+            "file_type": document.get("file_type"),
+            "file_size": document.get("file_size", 0),
+            "status": document.get("status"),
+            "chunk_count": document.get("chunk_count", 0),
+            "vector_count": len(vectors),
+            "created_at": document.get("created_at"),
+            "updated_at": document.get("updated_at"),
+            "metadata": document.get("metadata", {}),
+            "chunks": chunks,
+        }
+
+    def get_document_status(self, document_id: str) -> dict[str, Any]:
+        """获取文档状态
+
+        Args:
+            document_id: 文档ID
+
+        Returns:
+            文档状态
+        """
+        self._check_initialized()
+
+        document = self._doc_repo.load(document_id)
+
+        if document is None:
+            return {
+                "document_id": document_id,
+                "status": "not_found",
+            }
+
+        vectors = self._vector_repo.get_by_document_id(document_id)
+
+        return {
+            "document_id": document.get("document_id"),
+            "file_name": document.get("file_name"),
+            "status": document.get("status"),
+            "chunk_count": document.get("chunk_count", 0),
+            "vector_count": len(vectors),
+        }
+
+    def list_documents(
+        self,
+        status: str | None = None,
+        file_type: str | None = None,
+        skip: int = 0,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """列出文档
+
+        Args:
+            status: 按状态筛选
+            file_type: 按文件类型筛选
+            skip: 跳过数量
+            limit: 返回数量限制
+
+        Returns:
+            文档列表
+        """
+        self._check_initialized()
+
+        if skip < 0:
+            skip = 0
+        if limit is not None and limit < 1:
+            limit = None
+
+        documents = self._doc_repo.list_all()
+
+        if status:
+            documents = [doc for doc in documents if doc.get("status") == status]
+        if file_type:
+            documents = [doc for doc in documents if doc.get("file_type") == file_type]
+
+        total = len(documents)
+
+        if skip > 0 and skip < len(documents):
+            documents = documents[skip:]
+        elif skip >= len(documents):
+            documents = []
+
+        if limit is not None and limit > 0:
+            documents = documents[:limit]
+
+        return {
+            "documents": documents,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }

@@ -3,11 +3,11 @@
 """
 RAG API Module
 
-RAG查询接口
+RAG查询接口 - 仅负责参数接收、调用业务服务、标准化返回
 """
 
 from typing import Any
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 
 from schemas.rag import (
     RAGQueryRequest,
@@ -16,15 +16,16 @@ from schemas.rag import (
     RetrievedDocument,
 )
 from core.logger import logger
-from core.exceptions import RetrievalError, GenerationError, ConfigurationError
-from core.dependencies import get_retrieval_service, get_augmentation_service, get_generation_service
-from services.retrieval_service import RetrievalService
-from services.augmentation_service import AugmentationService
-from services.generation_service import GenerationService
-from infras.embedding.bge_model import CachedBGEEmbeddingModel
+from core.exceptions import RetrievalError, GenerationError
+from services.rag_service import RAGService
 from constants.common import HTTP_OK, MSG_SUCCESS
 
 router = APIRouter()
+
+
+def get_rag_service(request: Request) -> RAGService:
+    """依赖注入：获取RAG服务"""
+    return request.app.state.rag_service
 
 
 @router.post(
@@ -35,80 +36,30 @@ router = APIRouter()
 )
 async def rag_query(
     request: RAGQueryRequest,
-    retrieval_service: RetrievalService = Depends(get_retrieval_service),
-    augmentation_service: AugmentationService = Depends(get_augmentation_service),
-    generation_service: GenerationService = Depends(get_generation_service),
+    rag_service: RAGService = Depends(get_rag_service),
 ) -> dict[str, Any]:
     """RAG查询接口"""
     try:
-        # 检索相关文档
-        retrieved_docs = retrieval_service.retrieve(
+        result = await rag_service.query(
             query=request.query,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
             use_mmr=request.use_mmr,
             mmr_lambda=request.mmr_lambda,
             metadata_filter=request.metadata_filter,
-        )
-
-        if not retrieved_docs:
-            logger.warning(f"No documents retrieved for query: {request.query[:50]}...")
-            return {
-                "code": HTTP_OK,
-                "message": MSG_SUCCESS,
-                "data": {
-                    "query": request.query,
-                    "answer": "抱歉，没有找到相关文档内容。",
-                    "retrieved_docs": [],
-                    "provider": "none",
-                    "model": "none",
-                    "tokens_used": None,
-                },
-            }
-
-        # 增强：构建带有上下文的prompt
-        augmented = augmentation_service.augment(
-            query=request.query,
-            retrieved_docs=retrieved_docs,
-        )
-
-        # 生成答案
-        provider = request.provider or generation_service._default_provider
-        generation_result = await generation_service.generate(
-            prompt=augmented["full_prompt"],
-            provider=provider,
+            provider=request.provider,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )
 
-        # 构建响应
         return {
             "code": HTTP_OK,
             "message": MSG_SUCCESS,
-            "data": {
-                "query": request.query,
-                "answer": generation_result["text"],
-                "retrieved_docs": [
-                    RetrievedDocument(
-                        chunk_id=doc["id"],
-                        document_id=doc["metadata"].get("document_id", ""),
-                        text=doc["text"],
-                        score=doc["score"],
-                        metadata=doc["metadata"],
-                    ).model_dump()
-                    for doc in retrieved_docs
-                ],
-                "provider": generation_result["provider"],
-                "model": generation_result["model"],
-                "tokens_used": generation_result["tokens_used"],
-            },
+            "data": result,
         }
 
-    except RetrievalError as e:
-        logger.exception("Retrieval error")
-        raise HTTPException(status_code=500, detail=str(e)) from e
-    except GenerationError as e:
-        logger.exception("Generation error")
+    except (RetrievalError, GenerationError) as e:
+        logger.exception("RAG service error")
         raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
         logger.exception("RAG query error")
@@ -117,17 +68,17 @@ async def rag_query(
 
 @router.post(
     "/rag/retrieve",
-    summary="文档检索",
-    description="检索相关文档，不进行生成",
+    summary="文本检索",
+    description="通过文本检索相关文档，不进行生成",
     tags=["RAG"],
 )
 async def retrieve_docs(
     request: RetrievalRequest,
-    retrieval_service: RetrievalService = Depends(get_retrieval_service),
+    rag_service: RAGService = Depends(get_rag_service),
 ) -> dict[str, Any]:
-    """文档检索接口"""
+    """文本检索接口"""
     try:
-        documents = retrieval_service.retrieve(
+        documents = rag_service.retrieve(
             query=request.query,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
@@ -171,19 +122,25 @@ async def retrieve_docs(
     description="将文本转换为向量表示",
     tags=["RAG"],
 )
-async def embed_text(request: EmbeddingRequest) -> dict[str, Any]:
+async def embed_text(
+    request: EmbeddingRequest,
+    rag_service: RAGService = Depends(get_rag_service),
+) -> dict[str, Any]:
     """文本向量化接口"""
     try:
-        embedding_model = CachedBGEEmbeddingModel()
-        embeddings = embedding_model.encode(request.texts, normalize=request.normalize)
+        embeddings = rag_service.encode(
+            texts=request.texts,
+            normalize=request.normalize,
+        )
+        stats = rag_service.get_embedding_stats()
 
         return {
             "code": HTTP_OK,
             "message": MSG_SUCCESS,
             "data": {
                 "embeddings": embeddings,
-                "dimension": embedding_model.dimension,
-                "model": embedding_model.model_name,
+                "dimension": stats.get("dimension"),
+                "model": stats.get("model"),
             },
         }
 
@@ -199,17 +156,17 @@ async def embed_text(request: EmbeddingRequest) -> dict[str, Any]:
     tags=["RAG"],
 )
 async def get_rag_stats(
-    retrieval_service: RetrievalService = Depends(get_retrieval_service),
+    rag_service: RAGService = Depends(get_rag_service),
 ) -> dict[str, Any]:
     """获取RAG统计信息"""
     try:
-        vector_count = retrieval_service.get_vector_count()
+        stats = rag_service.get_stats()
 
         return {
             "code": HTTP_OK,
             "message": MSG_SUCCESS,
             "data": {
-                "vector_count": vector_count,
+                "vector_count": stats.get("retrieval", {}).get("vector_count", 0),
                 "status": "running",
             },
         }

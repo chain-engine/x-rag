@@ -83,6 +83,8 @@ class VectorStoreConfig:
 @dataclass
 class TextSplitterConfig:
     """文本切分配置"""
+    provider: str = "langchain"
+    strategy: str = "recursive"
     chunk_size: int = 512
     chunk_overlap: int = 50
     separators: list[str] = field(default_factory=lambda: ["\n\n", "\n", "。", "！", "？", " ", ""])
@@ -105,6 +107,27 @@ class GenerationConfig:
     temperature: float = 0.7
     max_tokens: int = 2000
     timeout: int = 30
+
+
+@dataclass
+class LLMProvidersConfig:
+    """LLM 提供商配置"""
+    # DeepSeek
+    deepseek_api_key: str = ""
+    deepseek_api_base: str = "https://api.deepseek.com/v1"
+    deepseek_model_name: str = "deepseek-chat"
+    # 豆包
+    doubao_api_key: str = ""
+    doubao_api_base: str = ""
+    doubao_model_name: str = "doubao-pro-32k"
+    # 阿里云百炼
+    aliyun_api_key: str = ""
+    aliyun_api_base: str = ""
+    aliyun_model_name: str = "qwen-plus"
+    # 小米 Mimo
+    mimo_api_key: str = ""
+    mimo_api_base: str = ""
+    mimo_model_name: str = "mimo-v2.5-pro"
 
 
 class Settings:
@@ -170,6 +193,8 @@ class Settings:
                 "distance": "cosine",
             },
             "text_splitter": {
+                "provider": "langchain",
+                "strategy": "recursive",
                 "chunk_size": 512,
                 "chunk_overlap": 50,
                 "separators": ["\n\n", "\n", "。", "！", "？", " ", ""],
@@ -186,6 +211,20 @@ class Settings:
                 "temperature": 0.7,
                 "max_tokens": 2000,
                 "timeout": 30,
+            },
+            "llm_providers": {
+                "deepseek_api_key": "",
+                "deepseek_api_base": "https://api.deepseek.com/v1",
+                "deepseek_model_name": "deepseek-chat",
+                "doubao_api_key": "",
+                "doubao_api_base": "",
+                "doubao_model_name": "doubao-pro-32k",
+                "aliyun_api_key": "",
+                "aliyun_api_base": "",
+                "aliyun_model_name": "qwen-plus",
+                "mimo_api_key": "",
+                "mimo_api_base": "",
+                "mimo_model_name": "mimo-v2.5-pro",
             },
         }
 
@@ -237,6 +276,8 @@ class Settings:
             "VECTOR_STORE_PERSIST_DIR": ("vector_store", "persist_directory", str),
             "VECTOR_STORE_COLLECTION_NAME": ("vector_store", "collection_name", str),
             "VECTOR_STORE_DISTANCE": ("vector_store", "distance", str),
+            "TEXT_SPLITTER_PROVIDER": ("text_splitter", "provider", str),
+            "TEXT_SPLITTER_STRATEGY": ("text_splitter", "strategy", str),
             "TEXT_SPLITTER_CHUNK_SIZE": ("text_splitter", "chunk_size", int),
             "TEXT_SPLITTER_CHUNK_OVERLAP": ("text_splitter", "chunk_overlap", int),
             "RETRIEVAL_TOP_K": ("retrieval", "top_k", int),
@@ -248,6 +289,22 @@ class Settings:
             "GENERATION_TEMPERATURE": ("generation", "temperature", float),
             "GENERATION_MAX_TOKENS": ("generation", "max_tokens", int),
             "GENERATION_TIMEOUT": ("generation", "timeout", int),
+            # DeepSeek
+            "DEEPSEEK_API_KEY": ("llm_providers", "deepseek_api_key", str),
+            "DEEPSEEK_API_BASE": ("llm_providers", "deepseek_api_base", str),
+            "DEEPSEEK_MODEL_NAME": ("llm_providers", "deepseek_model_name", str),
+            # 豆包
+            "DOUBAO_API_KEY": ("llm_providers", "doubao_api_key", str),
+            "DOUBAO_API_BASE": ("llm_providers", "doubao_api_base", str),
+            "DOUBAO_MODEL_NAME": ("llm_providers", "doubao_model_name", str),
+            # 阿里云百炼
+            "ALIYUN_API_KEY": ("llm_providers", "aliyun_api_key", str),
+            "ALIYUN_API_BASE": ("llm_providers", "aliyun_api_base", str),
+            "ALIYUN_MODEL_NAME": ("llm_providers", "aliyun_model_name", str),
+            # 小米 Mimo
+            "MIMO_API_KEY": ("llm_providers", "mimo_api_key", str),
+            "MIMO_API_BASE": ("llm_providers", "mimo_api_base", str),
+            "MIMO_MODEL_NAME": ("llm_providers", "mimo_model_name", str),
             "API_PREFIX": ("api", "prefix", str),
             "RATE_LIMIT_ENABLED": ("rate_limit", "enabled", lambda v: v.lower() == "true"),
             "RATE_LIMIT_REQUESTS_PER_MINUTE": ("rate_limit", "requests_per_minute", int),
@@ -276,6 +333,7 @@ class Settings:
         self.text_splitter = TextSplitterConfig(**self._config["text_splitter"])
         self.retrieval = RetrievalConfig(**self._config["retrieval"])
         self.generation = GenerationConfig(**self._config["generation"])
+        self.llm_providers = LLMProvidersConfig(**self._config["llm_providers"])
 
     def reload(self) -> None:
         """重新加载配置"""
@@ -356,6 +414,14 @@ class Settings:
         return self.vector_store.type
 
     @property
+    def TEXT_SPLITTER_PROVIDER(self) -> str:
+        return self.text_splitter.provider
+
+    @property
+    def TEXT_SPLITTER_STRATEGY(self) -> str:
+        return self.text_splitter.strategy
+
+    @property
     def TEXT_SPLITTER_CHUNK_SIZE(self) -> int:
         return self.text_splitter.chunk_size
 
@@ -402,6 +468,60 @@ class Settings:
     @property
     def GENERATION_TIMEOUT(self) -> int:
         return self.generation.timeout
+
+    # ===== LLM Provider Settings =====
+    @property
+    def DEEPSEEK_API_KEY(self) -> str:
+        return self.llm_providers.deepseek_api_key
+
+    @property
+    def DEEPSEEK_API_BASE(self) -> str:
+        return self.llm_providers.deepseek_api_base
+
+    @property
+    def DEEPSEEK_MODEL_NAME(self) -> str:
+        return self.llm_providers.deepseek_model_name
+
+    @property
+    def DOUBAO_API_KEY(self) -> str:
+        return self.llm_providers.doubao_api_key
+
+    @property
+    def DOUBAO_API_BASE(self) -> str:
+        return self.llm_providers.doubao_api_base
+
+    @property
+    def DOUBAO_MODEL_NAME(self) -> str:
+        return self.llm_providers.doubao_model_name
+
+    @property
+    def ALIYUN_API_KEY(self) -> str:
+        return self.llm_providers.aliyun_api_key
+
+    @property
+    def ALIYUN_API_BASE(self) -> str:
+        return self.llm_providers.aliyun_api_base
+
+    @property
+    def ALIYUN_MODEL_NAME(self) -> str:
+        return self.llm_providers.aliyun_model_name
+
+    @property
+    def MIMO_API_KEY(self) -> str:
+        return self.llm_providers.mimo_api_key
+
+    @property
+    def MIMO_API_BASE(self) -> str:
+        return self.llm_providers.mimo_api_base
+
+    @property
+    def MIMO_MODEL_NAME(self) -> str:
+        return self.llm_providers.mimo_model_name
+
+    # Legacy aliases for compatibility
+    @property
+    def TEMPERATURE(self) -> float:
+        return self.generation.temperature
 
     @property
     def API_PREFIX(self) -> str:

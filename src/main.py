@@ -24,13 +24,11 @@ from core.logger import logger
 from core.config import settings
 from core.middleware import setup_middleware
 from core.exceptions import AppException
-from core.services import AppServices
 from repositories.vector_repository import VectorRepository
 from repositories.document_repository import DocumentRepository
-from services.indexing_service import IndexingService
-from services.retrieval_service import RetrievalService
-from services.augmentation_service import AugmentationService
-from services.generation_service import GenerationService
+from rag import Retrieval, Augmentation, LLMGeneration, RAGPipeline
+from services.rag_service import RAGService
+from services.document_service import DocumentService
 from api.router import api_router
 
 
@@ -48,34 +46,40 @@ async def lifespan(app: FastAPI):
         )
         doc_repo = DocumentRepository(storage_path="./data/documents")
 
-        # 初始化Service层
-        indexing_service = IndexingService(
+        # 初始化文档服务
+        document_service = DocumentService(
             vector_repo=vector_repo,
             doc_repo=doc_repo,
             chunk_size=settings.TEXT_SPLITTER_CHUNK_SIZE,
             chunk_overlap=settings.TEXT_SPLITTER_CHUNK_OVERLAP,
+            chunking_provider=settings.TEXT_SPLITTER_PROVIDER,
+            chunking_strategy=settings.TEXT_SPLITTER_STRATEGY,
         )
-        retrieval_service = RetrievalService(vector_repo=vector_repo)
-        augmentation_service = AugmentationService()
-        generation_service = GenerationService(
+
+        # 初始化 RAG 服务
+        retrieval = Retrieval(vector_repo=vector_repo)
+        augmentation = Augmentation()
+        generation = LLMGeneration(
             default_provider=settings.GENERATION_PROVIDER,
             default_model=settings.GENERATION_MODEL,
             default_temperature=settings.GENERATION_TEMPERATURE,
             default_max_tokens=settings.GENERATION_MAX_TOKENS,
             default_timeout=settings.GENERATION_TIMEOUT,
         )
-
-        # 创建服务容器并初始化
-        services = AppServices(
-            indexing_service=indexing_service,
-            retrieval_service=retrieval_service,
-            augmentation_service=augmentation_service,
-            generation_service=generation_service,
+        pipeline = RAGPipeline(
+            retrieval=retrieval,
+            augmentation=augmentation,
+            generation=generation,
         )
-        services.initialize()
+        rag_service = RAGService(pipeline=pipeline)
 
-        # 存储到 app.state
-        app.state.services = services
+        # 直接存储到 app.state
+        app.state.rag_service = rag_service
+        app.state.document_service = document_service
+
+        # 初始化服务
+        rag_service.initialize()
+        document_service.initialize()
 
         logger.info("All services initialized successfully")
 
@@ -87,10 +91,13 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("Shutting down x-rag application...")
 
-        # 从 app.state 获取服务并关闭
-        services: AppServices | None = getattr(app.state, "services", None)
-        if services:
-            services.shutdown()
+        # 关闭服务
+        rag_service = getattr(app.state, "rag_service", None)
+        document_service = getattr(app.state, "document_service", None)
+        if rag_service:
+            rag_service.shutdown()
+        if document_service:
+            document_service.shutdown()
 
         logger.info("Application shutdown complete")
 

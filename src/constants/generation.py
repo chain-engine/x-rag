@@ -18,14 +18,16 @@ DEFAULT_TIMEOUT: Final[int] = 30
 # ====================================
 # LLM提供商常量
 # ====================================
-LLM_PROVIDER_OPENAI: Final[str] = "openai"
-LLM_PROVIDER_ANTHROPIC: Final[str] = "anthropic"
 LLM_PROVIDER_DEEPSEEK: Final[str] = "deepseek"
+LLM_PROVIDER_DOUBAO: Final[str] = "doubao"
 LLM_PROVIDER_ALIYUN: Final[str] = "aliyun"
+LLM_PROVIDER_MIMO: Final[str] = "mimo"
+LLM_PROVIDER_MOCK: Final[str] = "mock"
 
 SUPPORTED_LLM_PROVIDERS: Final[set[str]] = {
-    LLM_PROVIDER_OPENAI,
-    LLM_PROVIDER_ANTHROPIC,
     LLM_PROVIDER_DEEPSEEK,
+    LLM_PROVIDER_DOUBAO,
     LLM_PROVIDER_ALIYUN,
+    LLM_PROVIDER_MIMO,
+    LLM_PROVIDER_MOCK,
 }

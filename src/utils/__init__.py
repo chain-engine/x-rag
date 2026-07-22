@@ -3,50 +3,48 @@
 """
 Utils Package
 
-Utility modules for text processing, similarity calculation
+工具模块，提供相似度计算、过滤、重排序和索引优化功能
 """
 
-from .text_splitter import (
-    TextSplitter,
-    CharacterSplitter,
-    WordSplitter,
-    SentenceSplitter,
-    ParagraphSplitter,
-    SemanticSplitter,
-    TextChunk,
-    SplitStrategy,
-    create_splitter,
-)
+# 相似度计算
 from .similarity import (
+    SimilaritySearchEngine,
     SimilarityCalculator,
     DistanceType,
-    MetadataFilter,
-    MMRReranker,
-    compute_top_k_similar,
 )
-from .embedding import (
-    encode_texts,
-    encode_text,
+
+# 过滤器
+from .filters import (
+    MetadataFilterEngine,
+    MetadataFilter,
+)
+
+# 重排序
+from .reranker import (
+    MMRReranker,
+    RRFReranker,
+)
+
+# 索引优化
+from .index_optimizer import (
+    VectorIndexOptimizer,
+    IndexConfig,
+    MemoryEstimate,
 )
 
 __all__ = [
-    # Text Splitter
-    "TextSplitter",
-    "CharacterSplitter",
-    "WordSplitter",
-    "SentenceSplitter",
-    "ParagraphSplitter",
-    "SemanticSplitter",
-    "TextChunk",
-    "SplitStrategy",
-    "create_splitter",
-    # Similarity
+    # Similarity - 相似度计算
+    "SimilaritySearchEngine",
     "SimilarityCalculator",
     "DistanceType",
+    # Filters - 元数据过滤
+    "MetadataFilterEngine",
     "MetadataFilter",
+    # Reranker - 重排序
     "MMRReranker",
-    "compute_top_k_similar",
-    # Embedding
-    "encode_texts",
-    "encode_text",
+    "RRFReranker",
+    # Index Optimizer - 索引优化
+    "VectorIndexOptimizer",
+    "IndexConfig",
+    "MemoryEstimate",
 ]

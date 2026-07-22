@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Augmentation Service Module
+Augmentation Module
 
-增强服务 - RAG中负责将检索结果与查询进行增强融合的环节
+增强模块 - RAG中负责将检索结果与查询进行增强融合的环节
 """
 
 from typing import Any
 
-from services.base_service import BaseService
 from core.logger import logger
 
 
-class AugmentationService(BaseService):
-    """增强服务"""
+class Augmentation:
+    """增强器"""
 
     DEFAULT_SYSTEM_PROMPT = "你是一个专业的AI助手，请根据提供的参考资料回答用户问题。"
     DEFAULT_USER_PROMPT_TEMPLATE = """基于以下参考资料回答问题。
@@ -34,25 +33,6 @@ class AugmentationService(BaseService):
         self._system_prompt = system_prompt or self.DEFAULT_SYSTEM_PROMPT
         self._user_prompt_template = user_prompt_template or self.DEFAULT_USER_PROMPT_TEMPLATE
         self._max_context_length = max_context_length
-        self._initialized = False
-
-    def initialize(self) -> None:
-        """初始化服务"""
-        self._initialized = True
-        logger.info("AugmentationService initialized")
-
-    def shutdown(self) -> None:
-        """关闭服务"""
-        self._initialized = False
-        logger.info("AugmentationService shut down")
-
-    def get_stats(self) -> dict[str, Any]:
-        """获取服务统计信息"""
-        return {
-            "type": "augmentation",
-            "system_prompt": self._system_prompt,
-            "max_context_length": self._max_context_length,
-        }
 
     def augment(
         self,
@@ -70,8 +50,6 @@ class AugmentationService(BaseService):
         Returns:
             包含增强后prompt和相关信息的字典
         """
-        self._check_initialized()
-
         if not retrieved_docs:
             return {
                 "system_prompt": self._system_prompt,
@@ -81,7 +59,6 @@ class AugmentationService(BaseService):
                 "context_length": 0,
             }
 
-        # 提取文档内容
         context_items = []
         total_length = 0
 
@@ -89,7 +66,6 @@ class AugmentationService(BaseService):
             text = doc.get("text", "")
             doc_length = len(text)
 
-            # 截断超出最大长度的文档
             if total_length + doc_length > self._max_context_length:
                 remaining = self._max_context_length - total_length
                 if remaining > 100:
@@ -131,8 +107,6 @@ class AugmentationService(BaseService):
         Returns:
             增强后的完整prompt
         """
-        self._check_initialized()
-
         if not contexts:
             return query
 
@@ -141,8 +115,3 @@ class AugmentationService(BaseService):
             context=context_text,
             query=query,
         )
-
-    def _check_initialized(self) -> None:
-        """检查服务是否已初始化"""
-        if not self._initialized:
-            raise RuntimeError("AugmentationService not initialized. Call initialize() first.")
