@@ -11,84 +11,46 @@ LLM 提供者模块
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass, field
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
 
 from core.logger import logger
 from core.config import Settings
 from constants.generation import LLMProviderType
 
 
-@dataclass
-class LLMConfig:
-    """LLM 配置数据类"""
-    api_key: str = ""
-    api_base: str = ""
-    model_name: str = ""
-    temperature: float = 0.0
-    max_tokens: int | None = None
-    timeout: int = 60
-
-    def with_overrides(
-        self,
-        *,
-        api_key: str | None = None,
-        api_base: str | None = None,
-        model_name: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-        timeout: int | None = None,
-    ) -> LLMConfig:
-        """返回带有覆盖值的新配置"""
-        return LLMConfig(
-            api_key=api_key or self.api_key,
-            api_base=api_base or self.api_base,
-            model_name=model_name or self.model_name,
-            temperature=temperature if temperature is not None else self.temperature,
-            max_tokens=max_tokens if max_tokens is not None else self.max_tokens,
-            timeout=timeout if timeout is not None else self.timeout,
-        )
-
-
 class BaseLLMProvider(ABC):
     """
     LLM 提供者基类
 
-    所有 LLM 提供者都需要继承此类并实现 create_chat_model 方法。
+    所有 LLM 提供者都需要继承此类并实现 _get_config 方法。
     """
 
     provider_type: ClassVar[LLMProviderType]
     name: ClassVar[str]
     description: ClassVar[str]
 
-    def __init__(self, config: Optional[LLMConfig] = None) -> None:
-        """
-        初始化 LLM 提供者
-
-        Args:
-            config: LLM 配置（可选，默认从 settings 读取）
-        """
-        self.config = config or self._get_default_config()
-        self._chat_model: Optional[BaseChatModel] = None
-        self._config_snapshot: Optional[LLMConfig] = None
+    def __init__(self) -> None:
+        self._chat_model: BaseChatModel | None = None
+        self._config_snapshot: dict[str, Any] | None = None
 
     @staticmethod
-    def _get_settings() -> Any:
+    def _get_settings() -> Settings:
         """延迟加载 settings 以避免循环导入"""
         from core.config import settings
         return settings
 
-    @classmethod
-    def _get_default_config(cls) -> LLMConfig:
+    def _get_config(self, **overrides: Any) -> dict[str, Any]:
         """
-        获取默认配置（子类必须实现）
+        获取配置（子类必须实现）
+
+        Args:
+            **overrides: 运行时覆盖参数
 
         Returns:
-            LLMConfig 配置对象
+            配置字典
         """
         raise NotImplementedError
 
@@ -105,40 +67,36 @@ class BaseLLMProvider(ABC):
         Returns:
             BaseChatModel 实例
         """
-        logger.info(f"[{self.name}] 创建聊天模型: {self.config.model_name}")
+        config = self._get_config(**kwargs)
+        logger.info(f"[{self.name}] 创建聊天模型: {config.get('model_name')}")
 
         return ChatOpenAI(
-            api_key=self.config.api_key,
-            base_url=self.config.api_base,
-            model=self.config.model_name,
-            temperature=kwargs.get("temperature", self.config.temperature),
-            max_tokens=kwargs.get("max_tokens", self.config.max_tokens),
-            timeout=kwargs.get("timeout", self.config.timeout),
-            **kwargs,
+            api_key=config.get("api_key", ""),
+            base_url=config.get("api_base", ""),
+            model=config.get("model_name", ""),
+            temperature=kwargs.get("temperature", config.get("temperature", 0.0)),
+            max_tokens=kwargs.get("max_tokens", config.get("max_tokens")),
+            timeout=kwargs.get("timeout", config.get("timeout", 60)),
         )
+
+    def _get_snapshot_key(self, **kwargs: Any) -> dict[str, Any]:
+        """获取配置快照的 key，用于检测是否需要重建模型"""
+        config = self._get_config(**kwargs)
+        return {
+            "api_key": config.get("api_key"),
+            "api_base": config.get("api_base"),
+            "model_name": config.get("model_name"),
+        }
 
     @property
     def chat_model(self) -> BaseChatModel:
         """获取聊天模型（懒加载，检测配置变化自动重建）"""
-        current_config = self.config
-        needs_recreate = (
-            self._chat_model is None
-            or self._config_snapshot is None
-            or self._config_snapshot.api_key != current_config.api_key
-            or self._config_snapshot.api_base != current_config.api_base
-            or self._config_snapshot.model_name != current_config.model_name
-        )
+        current_key = self._get_snapshot_key()
 
-        if needs_recreate:
+        if self._chat_model is None or self._config_snapshot != current_key:
             self._chat_model = self.create_chat_model()
-            self._config_snapshot = LLMConfig(
-                api_key=current_config.api_key,
-                api_base=current_config.api_base,
-                model_name=current_config.model_name,
-                temperature=current_config.temperature,
-                max_tokens=current_config.max_tokens,
-                timeout=current_config.timeout,
-            )
+            self._config_snapshot = current_key
+
         return self._chat_model
 
     def invoke(self, messages: list[Any], **kwargs: Any) -> Any:
@@ -211,16 +169,17 @@ class DeepSeekProvider(BaseLLMProvider):
     name = "deepseek"
     description = "DeepSeek 模型提供者"
 
-    @classmethod
-    def _get_default_config(cls) -> LLMConfig:
-        """获取 DeepSeek 默认配置"""
-        settings = cls._get_settings()
-        return LLMConfig(
-            api_key=settings.DEEPSEEK_API_KEY,
-            api_base=settings.DEEPSEEK_API_BASE,
-            model_name=settings.DEEPSEEK_MODEL_NAME,
-            temperature=settings.TEMPERATURE,
-        )
+    def _get_config(self, **overrides: Any) -> dict[str, Any]:
+        """获取 DeepSeek 配置"""
+        settings = self._get_settings()
+        return {
+            "api_key": overrides.get("api_key") or settings.DEEPSEEK_API_KEY,
+            "api_base": overrides.get("api_base") or settings.DEEPSEEK_API_BASE,
+            "model_name": overrides.get("model_name") or settings.DEEPSEEK_MODEL_NAME,
+            "temperature": overrides.get("temperature") or settings.TEMPERATURE,
+            "max_tokens": overrides.get("max_tokens") or settings.MAX_TOKENS,
+            "timeout": overrides.get("timeout") or settings.LLM_TIMEOUT,
+        }
 
 
 class DoubaoProvider(BaseLLMProvider):
@@ -237,16 +196,17 @@ class DoubaoProvider(BaseLLMProvider):
     name = "doubao"
     description = "豆包模型提供者（字节跳动）"
 
-    @classmethod
-    def _get_default_config(cls) -> LLMConfig:
-        """获取豆包默认配置"""
-        settings = cls._get_settings()
-        return LLMConfig(
-            api_key=settings.DOUBAO_API_KEY,
-            api_base=settings.DOUBAO_API_BASE,
-            model_name=settings.DOUBAO_MODEL_NAME,
-            temperature=settings.TEMPERATURE,
-        )
+    def _get_config(self, **overrides: Any) -> dict[str, Any]:
+        """获取豆包配置"""
+        settings = self._get_settings()
+        return {
+            "api_key": overrides.get("api_key") or settings.DOUBAO_API_KEY,
+            "api_base": overrides.get("api_base") or settings.DOUBAO_API_BASE,
+            "model_name": overrides.get("model_name") or settings.DOUBAO_MODEL_NAME,
+            "temperature": overrides.get("temperature") or settings.TEMPERATURE,
+            "max_tokens": overrides.get("max_tokens") or settings.MAX_TOKENS,
+            "timeout": overrides.get("timeout") or settings.LLM_TIMEOUT,
+        }
 
 
 class AliyunProvider(BaseLLMProvider):
@@ -264,16 +224,17 @@ class AliyunProvider(BaseLLMProvider):
     name = "aliyun"
     description = "阿里云百炼模型提供者（通义千问）"
 
-    @classmethod
-    def _get_default_config(cls) -> LLMConfig:
-        """获取阿里云默认配置"""
-        settings = cls._get_settings()
-        return LLMConfig(
-            api_key=settings.ALIYUN_API_KEY,
-            api_base=settings.ALIYUN_API_BASE,
-            model_name=settings.ALIYUN_MODEL_NAME,
-            temperature=settings.TEMPERATURE,
-        )
+    def _get_config(self, **overrides: Any) -> dict[str, Any]:
+        """获取阿里云配置"""
+        settings = self._get_settings()
+        return {
+            "api_key": overrides.get("api_key") or settings.ALIYUN_API_KEY,
+            "api_base": overrides.get("api_base") or settings.ALIYUN_API_BASE,
+            "model_name": overrides.get("model_name") or settings.ALIYUN_MODEL_NAME,
+            "temperature": overrides.get("temperature") or settings.TEMPERATURE,
+            "max_tokens": overrides.get("max_tokens") or settings.MAX_TOKENS,
+            "timeout": overrides.get("timeout") or settings.LLM_TIMEOUT,
+        }
 
 
 class MimoProvider(BaseLLMProvider):
@@ -288,16 +249,17 @@ class MimoProvider(BaseLLMProvider):
     name = "mimo"
     description = "小米 Mimo 模型提供者"
 
-    @classmethod
-    def _get_default_config(cls) -> LLMConfig:
-        """获取 Mimo 默认配置"""
-        settings = cls._get_settings()
-        return LLMConfig(
-            api_key=settings.MIMO_API_KEY,
-            api_base=settings.MIMO_API_BASE,
-            model_name=settings.MIMO_MODEL_NAME,
-            temperature=settings.TEMPERATURE,
-        )
+    def _get_config(self, **overrides: Any) -> dict[str, Any]:
+        """获取 Mimo 配置"""
+        settings = self._get_settings()
+        return {
+            "api_key": overrides.get("api_key") or settings.MIMO_API_KEY,
+            "api_base": overrides.get("api_base") or settings.MIMO_API_BASE,
+            "model_name": overrides.get("model_name") or settings.MIMO_MODEL_NAME,
+            "temperature": overrides.get("temperature") or settings.TEMPERATURE,
+            "max_tokens": overrides.get("max_tokens") or settings.MAX_TOKENS,
+            "timeout": overrides.get("timeout") or settings.LLM_TIMEOUT,
+        }
 
 
 class MockProvider(BaseLLMProvider):
@@ -311,15 +273,16 @@ class MockProvider(BaseLLMProvider):
     name = "mock"
     description = "模拟模型提供者（用于测试）"
 
-    @classmethod
-    def _get_default_config(cls) -> LLMConfig:
+    def _get_config(self, **overrides: Any) -> dict[str, Any]:
         """获取模拟配置"""
-        return LLMConfig(
-            api_key="mock-api-key",
-            api_base="https://mock.api.com/v1",
-            model_name="mock-model",
-            temperature=0.0,
-        )
+        return {
+            "api_key": "mock-api-key",
+            "api_base": "https://mock.api.com/v1",
+            "model_name": "mock-model",
+            "temperature": 0.0,
+            "max_tokens": None,
+            "timeout": 60,
+        }
 
     def invoke(self, messages: list[Any], **kwargs: Any) -> Any:
         """返回模拟响应"""
@@ -357,13 +320,12 @@ _PROVIDER_REGISTRY: dict[str, type[BaseLLMProvider]] = {
 }
 
 
-def get_llm_provider(provider_name: str, config: Optional[LLMConfig] = None) -> BaseLLMProvider:
+def get_llm_provider(provider_name: str) -> BaseLLMProvider:
     """
     获取 LLM 提供者实例
 
     Args:
         provider_name: 提供者名称（deepseek, doubao, aliyun, mimo, mock）
-        config: 自定义配置（可选）
 
     Returns:
         BaseLLMProvider 实例
@@ -380,13 +342,13 @@ def get_llm_provider(provider_name: str, config: Optional[LLMConfig] = None) -> 
         )
 
     logger.info(f"获取 LLM 提供者: {provider_name}")
-    return _PROVIDER_REGISTRY[provider_name](config)
+    return _PROVIDER_REGISTRY[provider_name]()
 
 
 def create_chat_model(
     provider_name: str = "deepseek",
-    model_name: Optional[str] = None,
-    temperature: Optional[float] = None,
+    model_name: str | None = None,
+    temperature: float | None = None,
     **kwargs: Any,
 ) -> BaseChatModel:
     """
@@ -402,14 +364,11 @@ def create_chat_model(
         BaseChatModel 实例
     """
     provider = get_llm_provider(provider_name)
-
-    if model_name or temperature is not None:
-        provider.config = provider.config.with_overrides(
-            model_name=model_name,
-            temperature=temperature,
-        )
-
-    return provider.create_chat_model(**kwargs)
+    return provider.create_chat_model(
+        model_name=model_name,
+        temperature=temperature,
+        **kwargs,
+    )
 
 
 def list_providers() -> list[str]:
@@ -419,7 +378,6 @@ def list_providers() -> list[str]:
 
 __all__ = [
     "LLMProviderType",
-    "LLMConfig",
     "BaseLLMProvider",
     "DeepSeekProvider",
     "DoubaoProvider",
