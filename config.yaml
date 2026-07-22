@@ -13,7 +13,7 @@ server:
 # ====================================
 logging:
   level: INFO
-  file_path: logs/x-rag-{time:YYYYMMDDHHmmss}.log
+  file_path: ../logs/x-rag-{time:YYYYMMDDHHmmss}.log
   rotation: 1 day
   retention: 7 days
 
