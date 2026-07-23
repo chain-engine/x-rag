@@ -2,7 +2,9 @@
 """
 Keyword Retrieval Module
 
-关键词检索 — 基于 BM25 算法的召回
+关键词检索召回
+
+— 基于 BM25 算法的召回
 """
 
 from abc import abstractmethod

@@ -15,6 +15,7 @@ from typing import Any
 from services.base_service import BaseService
 from repositories.vector_repository import VectorRepository
 from repositories.document_repository import DocumentRepository
+from repositories.bm25_repository import BM25Repository
 from core.logger import logger
 from core.exceptions import DocumentError
 from chunking import get_chunking_provider
@@ -29,6 +30,7 @@ class DocumentService(BaseService):
         self,
         vector_repo: VectorRepository,
         doc_repo: DocumentRepository,
+        bm25_repo: BM25Repository | None = None,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
         chunking_provider: str = "langchain",
@@ -36,6 +38,7 @@ class DocumentService(BaseService):
     ):
         self._vector_repo = vector_repo
         self._doc_repo = doc_repo
+        self._bm25_repo = bm25_repo
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
         self._initialized = False
@@ -52,6 +55,8 @@ class DocumentService(BaseService):
         """初始化服务"""
         self._vector_repo.initialize()
         self._doc_repo.initialize()
+        if self._bm25_repo:
+            self._bm25_repo.initialize()
         self._initialized = True
         logger.info("DocumentService initialized (embedding model will be loaded on first use)")
 
@@ -60,6 +65,8 @@ class DocumentService(BaseService):
         if self._initialized:
             self._vector_repo.shutdown()
             self._doc_repo.shutdown()
+            if self._bm25_repo:
+                self._bm25_repo.shutdown()
             if self._embedding_model:
                 self._embedding_model.shutdown()
             self._initialized = False
@@ -67,13 +74,16 @@ class DocumentService(BaseService):
 
     def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
-        return {
+        stats = {
             "type": "document",
             "chunk_size": self._chunk_size,
             "chunk_overlap": self._chunk_overlap,
             "vector_stats": self._vector_repo.get_stats(),
             "document_stats": self._doc_repo.get_stats(),
         }
+        if self._bm25_repo:
+            stats["bm25_stats"] = self._bm25_repo.get_stats()
+        return stats
 
     def _get_embedding_model(self) -> BGEEmbeddingModel:
         """延迟获取 embedding model"""
@@ -161,6 +171,12 @@ class DocumentService(BaseService):
             ]
             self._vector_repo.add(ids, embeddings, chunk_texts, metadatas)
 
+            # 同时构建 BM25 稀疏索引
+            if self._bm25_repo:
+                logger.info(f"Document {document_id}: building BM25 sparse index...")
+                self._bm25_repo.add(ids, chunk_texts, metadatas)
+                logger.info(f"Document {document_id}: BM25 index built")
+
             # 更新文档状态
             self._doc_repo.update(document_id, {
                 "status": DocStatus.COMPLETED.mark,
@@ -196,6 +212,8 @@ class DocumentService(BaseService):
 
         try:
             vector_count = self._vector_repo.delete_by_document_id(document_id)
+            if self._bm25_repo:
+                bm25_count = self._bm25_repo.delete_by_document_id(document_id)
             self._doc_repo.delete(document_id)
 
             logger.info(f"Successfully deleted document {document_id} ({vector_count} vectors)")

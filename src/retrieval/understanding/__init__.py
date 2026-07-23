@@ -19,14 +19,18 @@ from retrieval.understanding.expansion import (
     SynonymExpander,
     EmbeddingExpander,
 )
-from retrieval.understanding.hyde import (
-    HyDEProvider,
-    LLMHyDE,
+from retrieval.understanding.preprocess import (
+    QueryPreprocessor,
 )
-from retrieval.understanding.subquery import (
-    SubqueryDecompositionProvider,
-    LLMSubqueryDecomposer,
+from retrieval.understanding.intent import (
+    IntentClassifier,
 )
+from retrieval.understanding.entity import (
+    EntityExtractor,
+)
+
+# IntentType / EntityType 已迁移至 constants.understanding
+from constants import IntentType, EntityType
 
 __all__ = [
     # Base
@@ -40,10 +44,12 @@ __all__ = [
     "QueryExpansionProvider",
     "SynonymExpander",
     "EmbeddingExpander",
-    # HyDE
-    "HyDEProvider",
-    "LLMHyDE",
-    # Subquery
-    "SubqueryDecompositionProvider",
-    "LLMSubqueryDecomposer",
+    # Preprocess
+    "QueryPreprocessor",
+    # Intent
+    "IntentClassifier",
+    "IntentType",  # re-exported from constants
+    # Entity
+    "EntityExtractor",
+    "EntityType",  # re-exported from constants
 ]

@@ -2,10 +2,9 @@
 """
 Semantic Reranking Module
 
-语义重排序 — 基于 LLM 语义评分进行重排序
+语义重排序
 
-NOTE: 此组件目前暂未被使用，未集成到检索流水线中。
-如需启用，可在 RetrievalPipeline 中配置 reranking_providers。
+— 基于 LLM 语义评分进行重排序
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 """
 Ranking Base Module
 
-Stage 3 — 排序筛选抽象基类，定义排序和过滤的独立接口。
+Stage 3 — 排序筛选抽象基类
 """
 
 from abc import ABC, abstractmethod

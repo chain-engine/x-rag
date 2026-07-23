@@ -2,7 +2,7 @@
 """
 Query Understanding Base Module
 
-Stage 1 — 查询理解抽象基类，定义统一的理解接口。
+Stage 1 — 查询理解抽象基类
 """
 
 from abc import ABC, abstractmethod

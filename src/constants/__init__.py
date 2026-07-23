@@ -98,6 +98,15 @@ from .server import (
     API_VERSION,
 )
 
+from .understanding import (
+    IntentType,
+    EntityType,
+    INTENT_PATTERNS,
+    ENTITY_PATTERNS,
+    DEFAULT_INTENT_MIN_CONFIDENCE,
+    DEFAULT_QUERY_STOPWORDS,
+)
+
 __all__ = [
     # BaseEnum
     "BaseEnum",
@@ -172,4 +181,11 @@ __all__ = [
     "API_PREFIX",
     "API_TITLE",
     "API_VERSION",
+    # Understanding
+    "IntentType",
+    "EntityType",
+    "INTENT_PATTERNS",
+    "ENTITY_PATTERNS",
+    "DEFAULT_INTENT_MIN_CONFIDENCE",
+    "DEFAULT_QUERY_STOPWORDS",
 ]

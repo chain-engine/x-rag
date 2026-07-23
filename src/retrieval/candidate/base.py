@@ -2,7 +2,7 @@
 """
 Candidate Retrieval Base Module
 
-Stage 2 — 候选召回抽象基类，定义统一的检索接口。
+Stage 2 — 候选召回抽象基类
 """
 
 from abc import ABC, abstractmethod

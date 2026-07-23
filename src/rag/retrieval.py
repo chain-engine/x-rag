@@ -10,13 +10,19 @@ from typing import Any
 from core.logger import logger
 from core.exceptions import RetrievalError
 from repositories.vector_repository import VectorRepository
+from repositories.bm25_repository import BM25Repository
 from infras.embedding.bge_model import BGEEmbeddingModel
 from retrieval.pipeline import RetrievalPipeline
 from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
+from retrieval.candidate.bm25_retrieval import BM25RetrievalProvider
 from retrieval.ranking.mmr import MMRReranker
+from retrieval.ranking.rrf import RRFReranker
 from retrieval.ranking.score_filter import ScoreFilter
 from retrieval.understanding.expansion import SynonymExpander
 from retrieval.understanding.rewrite import SimpleQueryRewriter
+from retrieval.understanding.preprocess import QueryPreprocessor
+from retrieval.understanding.intent import IntentClassifier
+from retrieval.understanding.entity import EntityExtractor
 from utils.similarity import SimilaritySearchEngine, DistanceType
 
 
@@ -27,11 +33,16 @@ class Retrieval:
     本类作为上层 API 入口，委托至 RetrievalPipeline 执行三阶段检索流水线：
     Stage 1 查询理解 → Stage 2 候选召回 → Stage 3 排序筛选
     （增强由 RAGPipeline 的 Augmentation 组件独立完成）
+    
+    支持多路召回：
+    - 稠密向量检索 (Chroma ANN)
+    - 稀疏 BM25 检索 (倒排索引)
     """
 
     def __init__(
         self,
         vector_repo: VectorRepository | None = None,
+        bm25_repo: BM25Repository | None = None,
         embedding_model: BGEEmbeddingModel | None = None,
         default_top_k: int = 5,
         default_threshold: float = 0.7,
@@ -41,33 +52,53 @@ class Retrieval:
 
         Args:
             vector_repo: 向量仓库实例（可选）
+            bm25_repo: BM25 仓库实例（可选，用于稀疏索引召回）
             embedding_model: Embedding 模型实例（可选）
             default_top_k: 默认召回数量
             default_threshold: 默认相似度阈值
         """
         self._vector_repo = vector_repo
+        self._bm25_repo = bm25_repo
         self._embedding_model = embedding_model
         self._default_top_k = default_top_k
         self._default_threshold = default_threshold
         self._initialized = False
 
-        # ── 构建默认的检索流水线 ──────────────────────────
+        # ── 构建检索流水线 ──────────────────────────
         # Stage 1: 查询理解
         understanding_providers = [
-            SynonymExpander(),           # 同义词扩展，增加召回
-            SimpleQueryRewriter(),       # 简单规则改写，无 LLM 依赖
+            QueryPreprocessor(),    # 预处理
+            IntentClassifier(),     # 意图识别
+            EntityExtractor(),      # 实体抽取
+            SynonymExpander(),      # 同义词扩展
+            SimpleQueryRewriter(),  # 简单规则重写
         ]
 
-        # Stage 2: 候选召回
+        # Stage 2: 候选召回 — 多路召回
+        candidate_providers = []
+        
+        # 稠密向量检索
         vector_retrieval = ChromaVectorRetrieval(
             vector_repo=vector_repo,
             embedding_model=embedding_model,
             top_k=default_top_k,
         )
+        candidate_providers.append(vector_retrieval)
+        
+        # 稀疏 BM25 检索
+        if bm25_repo is not None:
+            bm25_retrieval = BM25RetrievalProvider(
+                bm25_repo=bm25_repo,
+                top_k=default_top_k,
+            )
+            candidate_providers.append(bm25_retrieval)
+            logger.info("Multi-way retrieval enabled: vector + BM25")
 
-        # Stage 3: 排序筛选
+        # Stage 3: 排序筛选 — RRF 融合多路召回结果后，再做 MMR 多样性排序
+        # 顺序很重要：RRF 先融合 → MMR 后重排（确保多样性的基础上融合）
         reranking_providers = [
-            MMRReranker(distance_type=DistanceType.COSINE),
+            RRFReranker(k=60),  # 融合多路召回（向量 + BM25）的结果
+            MMRReranker(distance_type=DistanceType.COSINE),  # 多样性重排
         ]
         filter_providers = [
             ScoreFilter(threshold=default_threshold),
@@ -75,7 +106,7 @@ class Retrieval:
 
         self._pipeline = RetrievalPipeline(
             understanding_providers=understanding_providers,
-            candidate_providers=[vector_retrieval],
+            candidate_providers=candidate_providers,
             reranking_providers=reranking_providers,
             filter_providers=filter_providers,
             similarity_engine=SimilaritySearchEngine(distance_type=DistanceType.COSINE),

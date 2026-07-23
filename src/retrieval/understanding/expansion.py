@@ -2,7 +2,9 @@
 """
 Query Expansion Module
 
-查询扩展 — 扩展查询以增加召回率
+查询扩展
+
+— 扩展查询以增加召回率
 """
 
 from abc import abstractmethod

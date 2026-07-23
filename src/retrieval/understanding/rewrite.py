@@ -2,7 +2,9 @@
 """
 Query Rewrite Module
 
-查询重写 — 将用户查询改写为更适合检索的形式
+查询重写
+
+— 将用户查询改写为更适合检索的形式
 """
 
 from abc import abstractmethod

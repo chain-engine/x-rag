@@ -4,7 +4,7 @@ Metadata Filter Engine Module
 
 元数据过滤引擎
 
- — 根据文档的元数据字段进行条件过滤
+— 根据文档的元数据字段进行条件过滤
 """
 
 from typing import Any

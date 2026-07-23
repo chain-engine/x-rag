@@ -26,6 +26,7 @@ from core.middleware import setup_middleware
 from core.exceptions import AppException
 from repositories.vector_repository import VectorRepository
 from repositories.document_repository import DocumentRepository
+from repositories.bm25_repository import BM25Repository
 from rag import Retrieval, Augmentation, LLMGeneration, RAGPipeline
 from services.rag_service import RAGService
 from services.document_service import DocumentService
@@ -45,19 +46,29 @@ async def lifespan(app: FastAPI):
             distance_type=settings.VECTOR_STORE_DISTANCE,
         )
         doc_repo = DocumentRepository(storage_path="./data/documents")
+        
+        # 初始化 BM25 仓库（稀疏索引）
+        bm25_repo = BM25Repository(
+            persist_directory="./data/bm25",
+            index_name="documents",
+        )
 
-        # 初始化文档服务
+        # 初始化文档服务（同时构建稠密和稀疏索引）
         document_service = DocumentService(
             vector_repo=vector_repo,
             doc_repo=doc_repo,
+            bm25_repo=bm25_repo,
             chunk_size=settings.TEXT_SPLITTER_CHUNK_SIZE,
             chunk_overlap=settings.TEXT_SPLITTER_CHUNK_OVERLAP,
             chunking_provider=settings.TEXT_SPLITTER_PROVIDER,
             chunking_strategy=settings.TEXT_SPLITTER_STRATEGY,
         )
 
-        # 初始化 RAG 服务
-        retrieval = Retrieval(vector_repo=vector_repo)
+        # 初始化 RAG 服务（启用多路召回）
+        retrieval = Retrieval(
+            vector_repo=vector_repo,
+            bm25_repo=bm25_repo,
+        )
         augmentation = Augmentation()
         generation = LLMGeneration(
             default_provider=settings.GENERATION_PROVIDER,

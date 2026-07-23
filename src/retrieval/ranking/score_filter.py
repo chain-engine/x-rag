@@ -2,7 +2,9 @@
 """
 Score Filter Module
 
-分值过滤 — 基于相似度阈值的过滤
+分值过滤
+
+— 基于相似度阈值的过滤
 """
 
 from __future__ import annotations

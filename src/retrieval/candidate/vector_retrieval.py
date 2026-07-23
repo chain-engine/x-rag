@@ -2,7 +2,9 @@
 """
 Vector Retrieval Module
 
-向量检索 — 基于向量相似度的召回算法
+向量检索召回
+
+— 基于向量相似度的召回算法
 """
 
 from typing import Any, Optional
