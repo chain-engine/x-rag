@@ -125,46 +125,52 @@ x-rag/
 
 ### Retrieval Pipeline Architecture (Key Feature)
 
-```
-User Query
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Stage 1: Query Understanding (parallel → merge)           │
-│                                                             │
-│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐  │
-│  │QueryPreproc   │ │IntentClassifier│ │EntityExtractor│  │
-│  │ (Preprocess)  │ │(Intent Detect) │ │(NER)          │  │
-│  └───────────────┘ └───────────────┘ └───────────────┘  │
-│  ┌───────────────┐ ┌───────────────┐                    │
-│  │SynonymExpander│ │SimpleRewriter  │                    │
-│  │(Synonym)      │ │(Rule Rewrite)  │                    │
-│  └───────────────┘ └───────────────┘                    │
-│                          ↓ merge()                          │
-│              processed_query + intent + entities              │
-│              + expanded_terms + sub_queries                 │
-└─────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Stage 2: Candidate Retrieval (multi-source → dedup)       │
-│                                                             │
-│  ┌────────────────────────┐  ┌────────────────────────┐  │
-│  │ChromaVectorRetrieval   │  │BM25RetrievalProvider  │  │
-│  │   (Dense ANN)         │  │   (Sparse BM25)       │  │
-│  └────────────────────────┘  └────────────────────────┘  │
-│                          ↓ candidate set                     │
-└─────────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Stage 3: Ranking & Filtering (sequential)                 │
-│                                                             │
-│  RRFReranker ──→ MMRReranker ──→ ScoreFilter              │
-│  (Rank Fusion)   (Diversity)       (Threshold)              │
-│                          ↓                                   │
-│              Final Top-K Results                            │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Q["User Query"]
+
+    subgraph Stage1["Stage 1: Query Understanding (parallel → merge)"]
+        P1["QueryPreprocessor<br/>(Preprocess)"]
+        I1["IntentClassifier<br/>(Intent Detect)"]
+        E1["EntityExtractor<br/>(NER)"]
+        S1["SynonymExpander<br/>(Synonym)"]
+        R1["SimpleRewriter<br/>(Rule Rewrite)"]
+        M1["merge()"]
+        P1 --> M1
+        I1 --> M1
+        E1 --> M1
+        S1 --> M1
+        R1 --> M1
+    end
+
+    Q --> Stage1
+
+    subgraph Stage2["Stage 2: Candidate Retrieval (multi-source → dedup)"]
+        V1["ChromaVectorRetrieval<br/>(Dense ANN)"]
+        B1["BM25RetrievalProvider<br/>(Sparse BM25)"]
+        D1["Dedup & Merge"]
+        V1 --> D1
+        B1 --> D1
+    end
+
+    M1 --> Stage2
+
+    subgraph Stage3["Stage 3: Ranking & Filtering (sequential)"]
+        RRF["RRFReranker<br/>(Rank Fusion)"]
+        MMR["MMRReranker<br/>(Diversity)"]
+        SF["ScoreFilter<br/>(Threshold)"]
+        RRF --> MMR --> SF
+    end
+
+    D1 --> Stage3
+
+    SF --> R["Final Top-K Results"]
+
+    style Q fill:#e1f5fe,stroke:#01579b
+    style Stage1 fill:#fff8e1,stroke:#ff8f00
+    style Stage2 fill:#e8f5e9,stroke:#2e7d32
+    style Stage3 fill:#fce4ec,stroke:#c2185b
+    style R fill:#c8e6c9,stroke:#2e7d32
 ```
 
 ### Layered Architecture Diagram
@@ -178,25 +184,23 @@ graph TB
         A1 --- A2 --- A3
     end
 
+    subgraph "Business Logic Layer (services)"
+        SVC1["rag_service.py<br/>RAG Service"]
+        SVC2["document_service.py<br/>Document Service"]
+    end
+
     subgraph "RAG Core (rag)"
-        RAG1["pipeline.py<br/>Pipeline Orchestration"]
-        RAG2["retrieval.py<br/>Retrieval Entry"]
+        RAG1["pipeline.py<br/>RAGPipeline<br/>Orchestrates Retrieval→Augmentation→Generation"]
+        RAG2["retrieval.py<br/>Retrieval<br/>Retrieval Entry"]
         RAG3["augmentation.py<br/>Context Augmentation"]
         RAG4["generation.py<br/>LLM Generation"]
     end
 
     subgraph "Retrieval Subsystem (retrieval)"
-        RET1["pipeline.py<br/>Retrieval Pipeline"]
+        RET1["pipeline.py<br/>RetrievalPipeline<br/>Orchestrates 3-Stage Pipeline"]
         RET2["understanding/<br/>Query Understanding"]
         RET3["candidate/<br/>Candidate Retrieval"]
         RET4["ranking/<br/>Ranking & Filtering"]
-        RET2 --- RET1
-        RET3 --- RET1
-        RET4 --- RET1
-    end
-
-    subgraph "Business Logic Layer (services)"
-        SVC1["document_service.py<br/>Document Service"]
     end
 
     subgraph "Data Access Layer (repositories)"
@@ -233,54 +237,63 @@ graph TB
         CON2["understanding.py<br/>Understanding Constants"]
     end
 
-    A1 --> RAG1
-    A2 --> RAG2
-    A3 --> SVC1
+    A2 --> SVC1
+    A3 --> SVC2
+    A1 -.-> SVC1
+
+    SVC1 --> RAG1
+    SVC2 --> REP2
+    SVC2 --> CHK1
+
+    RAG1 --> RAG2
+    RAG1 --> RAG3
+    RAG1 --> RAG4
 
     RAG2 --> RET1
-    RAG1 --> RET1
-    RAG1 --> RAG3
     RAG3 --> RAG4
     RAG4 --> LLM1
 
-    RET1 --> REP1
+    RET1 --> RET2
+    RET1 --> RET3
+    RET1 --> RET4
+
     RET3 --> REP1
-    SVC1 --> REP1
-    SVC1 --> REP2
-    SVC1 --> REP3
-    SVC1 --> CHK1
-    CHK1 --> I3
+    RET3 --> REP3
 
     REP1 --> I1
     REP2 --> I2
-    RET3 --> REP3
+    REP3 -.-> I3
+    CHK1 --> I3
 
-    style A1 fill:#e1f5fe
-    style A2 fill:#e1f5fe
-    style A3 fill:#e1f5fe
-    style RAG1 fill:#fff3e0
-    style RAG2 fill:#fff3e0
-    style RAG3 fill:#fff3e0
-    style RAG4 fill:#fff3e0
-    style RET1 fill:#fff8e1
-    style RET2 fill:#fff8e1
-    style RET3 fill:#fff8e1
-    style RET4 fill:#fff8e1
-    style SVC1 fill:#f1f8e9
-    style REP1 fill:#e8f5e9
-    style REP2 fill:#e8f5e9
-    style REP3 fill:#e8f5e9
-    style I1 fill:#fce4ec
-    style I2 fill:#fce4ec
-    style I3 fill:#fce4ec
-    style LLM1 fill:#f3e5f5
-    style LLM2 fill:#f3e5f5
-    style C1 fill:#eceff1
-    style C2 fill:#eceff1
-    style C3 fill:#eceff1
-    style C4 fill:#eceff1
-    style CON1 fill:#ede7f6
-    style CON2 fill:#ede7f6
+    style A1 fill:#b3e5fc,stroke:#0277bd
+    style A2 fill:#b3e5fc,stroke:#0277bd
+    style A3 fill:#b3e5fc,stroke:#0277bd
+    style SVC1 fill:#c8e6c9,stroke:#2e7d32
+    style SVC2 fill:#c8e6c9,stroke:#2e7d32
+    style RAG1 fill:#ffe0b2,stroke:#ef6c00
+    style RAG2 fill:#ffe0b2,stroke:#ef6c00
+    style RAG3 fill:#ffe0b2,stroke:#ef6c00
+    style RAG4 fill:#ffe0b2,stroke:#ef6c00
+    style RET1 fill:#e1bee7,stroke:#7b1fa2
+    style RET2 fill:#e1bee7,stroke:#7b1fa2
+    style RET3 fill:#e1bee7,stroke:#7b1fa2
+    style RET4 fill:#e1bee7,stroke:#7b1fa2
+    style REP1 fill:#fff9c4,stroke:#f9a825
+    style REP2 fill:#fff9c4,stroke:#f9a825
+    style REP3 fill:#fff9c4,stroke:#f9a825
+    style I1 fill:#f8bbd0,stroke:#c2185b
+    style I2 fill:#f8bbd0,stroke:#c2185b
+    style I3 fill:#f8bbd0,stroke:#c2185b
+    style LLM1 fill:#d1c4e9,stroke:#512da8
+    style LLM2 fill:#d1c4e9,stroke:#512da8
+    style CHK1 fill:#d1c4e9,stroke:#512da8
+    style CHK2 fill:#d1c4e9,stroke:#512da8
+    style C1 fill:#cfd8dc,stroke:#455a64
+    style C2 fill:#cfd8dc,stroke:#455a64
+    style C3 fill:#cfd8dc,stroke:#455a64
+    style C4 fill:#cfd8dc,stroke:#455a64
+    style CON1 fill:#dcedc8,stroke:#558b2f
+    style CON2 fill:#dcedc8,stroke:#558b2f
 ```
 
 ### Module Dependency Diagram

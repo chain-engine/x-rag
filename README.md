@@ -125,46 +125,52 @@ x-rag/
 
 ### 检索流水线架构（核心亮点）
 
-```
-用户查询
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│  Stage 1: 查询理解（并行执行 → merge 合并）               │
-│                                                         │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐  │
-│  │QueryPreproc  │ │ IntentClass  │ │EntityExtract │  │
-│  │ (预处理)      │ │ (意图识别)   │ │ (实体抽取)   │  │
-│  └──────────────┘ └──────────────┘ └──────────────┘  │
-│  ┌──────────────┐ ┌──────────────┐                    │
-│  │SynonymExpand │ │SimpleRewrite │                    │
-│  │(同义词扩展)   │ │ (规则重写)   │                    │
-│  └──────────────┘ └──────────────┘                    │
-│                        ↓ merge()                        │
-│          processed_query + intent + entities             │
-│          + expanded_terms + sub_queries                 │
-└─────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│  Stage 2: 候选召回（多路并行 → 去重合并）                │
-│                                                         │
-│  ┌──────────────────────┐  ┌──────────────────────┐  │
-│  │ ChromaVectorRetrieval │  │  BM25RetrievalProvider│  │
-│  │   (稠密向量 ANN)      │  │   (稀疏 BM25 关键词)   │  │
-│  └──────────────────────┘  └──────────────────────┘  │
-│                        ↓ 候选文档集合                     │
-└─────────────────────────────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────────────────────────────┐
-│  Stage 3: 排序筛选（依次执行）                          │
-│                                                         │
-│  RRFReranker ──→ MMRReranker ──→ ScoreFilter           │
-│  (多路排名融合)   (多样性重排)      (阈值过滤)            │
-│                        ↓                                │
-│              最终 Top-K 检索结果                          │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Q["用户查询"]
+
+    subgraph Stage1["Stage 1: 查询理解（并行执行 → merge 合并）"]
+        P1["QueryPreprocessor<br/>(预处理)"]
+        I1["IntentClassifier<br/>(意图识别)"]
+        E1["EntityExtractor<br/>(实体抽取)"]
+        S1["SynonymExpander<br/>(同义词扩展)"]
+        R1["SimpleRewriter<br/>(规则重写)"]
+        M1["merge()"]
+        P1 --> M1
+        I1 --> M1
+        E1 --> M1
+        S1 --> M1
+        R1 --> M1
+    end
+
+    Q --> Stage1
+
+    subgraph Stage2["Stage 2: 候选召回（多路并行 → 去重合并）"]
+        V1["ChromaVectorRetrieval<br/>(稠密向量 ANN)"]
+        B1["BM25RetrievalProvider<br/>(稀疏 BM25 关键词)"]
+        D1["去重合并"]
+        V1 --> D1
+        B1 --> D1
+    end
+
+    M1 --> Stage2
+
+    subgraph Stage3["Stage 3: 排序筛选（依次执行）"]
+        RRF["RRFReranker<br/>(多路排名融合)"]
+        MMR["MMRReranker<br/>(多样性重排)"]
+        SF["ScoreFilter<br/>(阈值过滤)"]
+        RRF --> MMR --> SF
+    end
+
+    D1 --> Stage3
+
+    SF --> R["最终 Top-K 检索结果"]
+
+    style Q fill:#e1f5fe,stroke:#01579b
+    style Stage1 fill:#fff8e1,stroke:#ff8f00
+    style Stage2 fill:#e8f5e9,stroke:#2e7d32
+    style Stage3 fill:#fce4ec,stroke:#c2185b
+    style R fill:#c8e6c9,stroke:#2e7d32
 ```
 
 ### 分层架构图
@@ -178,25 +184,23 @@ graph TB
         A1 --- A2 --- A3
     end
 
+    subgraph "业务逻辑层 (services)"
+        SVC1["rag_service.py<br/>RAG 服务"]
+        SVC2["document_service.py<br/>文档服务"]
+    end
+
     subgraph "RAG 核心层 (rag)"
-        RAG1["pipeline.py<br/>流水线编排"]
-        RAG2["retrieval.py<br/>检索入口"]
+        RAG1["pipeline.py<br/>RAGPipeline<br/>编排 Retrieval→Augmentation→Generation"]
+        RAG2["retrieval.py<br/>Retrieval<br/>检索入口"]
         RAG3["augmentation.py<br/>上下文增强"]
         RAG4["generation.py<br/>LLM 生成"]
     end
 
     subgraph "检索子系统 (retrieval)"
-        RET1["pipeline.py<br/>检索流水线"]
+        RET1["pipeline.py<br/>RetrievalPipeline<br/>编排三阶段流水线"]
         RET2["understanding/<br/>查询理解"]
         RET3["candidate/<br/>候选召回"]
         RET4["ranking/<br/>排序筛选"]
-        RET2 --- RET1
-        RET3 --- RET1
-        RET4 --- RET1
-    end
-
-    subgraph "业务逻辑层 (services)"
-        SVC1["document_service.py<br/>文档服务"]
     end
 
     subgraph "数据访问层 (repositories)"
@@ -233,54 +237,63 @@ graph TB
         CON2["understanding.py<br/>查询理解常量"]
     end
 
-    A1 --> RAG1
-    A2 --> RAG2
-    A3 --> SVC1
+    A2 --> SVC1
+    A3 --> SVC2
+    A1 -.-> SVC1
+
+    SVC1 --> RAG1
+    SVC2 --> REP2
+    SVC2 --> CHK1
+
+    RAG1 --> RAG2
+    RAG1 --> RAG3
+    RAG1 --> RAG4
 
     RAG2 --> RET1
-    RAG1 --> RET1
-    RAG1 --> RAG3
     RAG3 --> RAG4
     RAG4 --> LLM1
 
-    RET1 --> REP1
+    RET1 --> RET2
+    RET1 --> RET3
+    RET1 --> RET4
+
     RET3 --> REP1
-    SVC1 --> REP1
-    SVC1 --> REP2
-    SVC1 --> REP3
-    SVC1 --> CHK1
-    CHK1 --> I3
+    RET3 --> REP3
 
     REP1 --> I1
     REP2 --> I2
-    RET3 --> REP3
+    REP3 -.-> I3
+    CHK1 --> I3
 
-    style A1 fill:#e1f5fe
-    style A2 fill:#e1f5fe
-    style A3 fill:#e1f5fe
-    style RAG1 fill:#fff3e0
-    style RAG2 fill:#fff3e0
-    style RAG3 fill:#fff3e0
-    style RAG4 fill:#fff3e0
-    style RET1 fill:#fff8e1
-    style RET2 fill:#fff8e1
-    style RET3 fill:#fff8e1
-    style RET4 fill:#fff8e1
-    style SVC1 fill:#f1f8e9
-    style REP1 fill:#e8f5e9
-    style REP2 fill:#e8f5e9
-    style REP3 fill:#e8f5e9
-    style I1 fill:#fce4ec
-    style I2 fill:#fce4ec
-    style I3 fill:#fce4ec
-    style LLM1 fill:#f3e5f5
-    style LLM2 fill:#f3e5f5
-    style C1 fill:#eceff1
-    style C2 fill:#eceff1
-    style C3 fill:#eceff1
-    style C4 fill:#eceff1
-    style CON1 fill:#ede7f6
-    style CON2 fill:#ede7f6
+    style A1 fill:#b3e5fc,stroke:#0277bd
+    style A2 fill:#b3e5fc,stroke:#0277bd
+    style A3 fill:#b3e5fc,stroke:#0277bd
+    style SVC1 fill:#c8e6c9,stroke:#2e7d32
+    style SVC2 fill:#c8e6c9,stroke:#2e7d32
+    style RAG1 fill:#ffe0b2,stroke:#ef6c00
+    style RAG2 fill:#ffe0b2,stroke:#ef6c00
+    style RAG3 fill:#ffe0b2,stroke:#ef6c00
+    style RAG4 fill:#ffe0b2,stroke:#ef6c00
+    style RET1 fill:#e1bee7,stroke:#7b1fa2
+    style RET2 fill:#e1bee7,stroke:#7b1fa2
+    style RET3 fill:#e1bee7,stroke:#7b1fa2
+    style RET4 fill:#e1bee7,stroke:#7b1fa2
+    style REP1 fill:#fff9c4,stroke:#f9a825
+    style REP2 fill:#fff9c4,stroke:#f9a825
+    style REP3 fill:#fff9c4,stroke:#f9a825
+    style I1 fill:#f8bbd0,stroke:#c2185b
+    style I2 fill:#f8bbd0,stroke:#c2185b
+    style I3 fill:#f8bbd0,stroke:#c2185b
+    style LLM1 fill:#d1c4e9,stroke:#512da8
+    style LLM2 fill:#d1c4e9,stroke:#512da8
+    style CHK1 fill:#d1c4e9,stroke:#512da8
+    style CHK2 fill:#d1c4e9,stroke:#512da8
+    style C1 fill:#cfd8dc,stroke:#455a64
+    style C2 fill:#cfd8dc,stroke:#455a64
+    style C3 fill:#cfd8dc,stroke:#455a64
+    style C4 fill:#cfd8dc,stroke:#455a64
+    style CON1 fill:#dcedc8,stroke:#558b2f
+    style CON2 fill:#dcedc8,stroke:#558b2f
 ```
 
 ### 模块依赖关系图
