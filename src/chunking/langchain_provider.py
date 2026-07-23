@@ -53,27 +53,27 @@ class LangchainProvider(BaseChunkingProvider):
             return self._splitter
 
         if self.strategy == "recursive":
-            from langchain.text_splitter import RecursiveCharacterTextSplitter
+            from langchain_text_splitters import RecursiveCharacterTextSplitter
             self._splitter = RecursiveCharacterTextSplitter(
                 chunk_size=self.chunk_size,
                 chunk_overlap=self.chunk_overlap,
                 separators=self.separators,
             )
         elif self.strategy == "character":
-            from langchain.text_splitter import CharacterTextSplitter
+            from langchain_text_splitters import CharacterTextSplitter
             self._splitter = CharacterTextSplitter(
                 separator="\n",
                 chunk_size=self.chunk_size,
                 chunk_overlap=self.chunk_overlap,
             )
         elif self.strategy == "token":
-            from langchain.text_splitter import TokenTextSplitter
+            from langchain_text_splitters import TokenTextSplitter
             self._splitter = TokenTextSplitter(
                 chunk_size=self.chunk_size,
                 chunk_overlap=self.chunk_overlap,
             )
         elif self.strategy == "semantic":
-            from langchain.text_splitter import SemanticChunker
+            from langchain_text_splitters import SemanticChunker
             from langchain_community.embeddings import HuggingFaceEmbeddings
 
             embeddings = HuggingFaceEmbeddings(

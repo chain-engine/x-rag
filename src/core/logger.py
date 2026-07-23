@@ -43,10 +43,19 @@ def _configure_logger():
             diagnose=True,
         )
         
-        # 配置日志输出到控制台（开发环境）
+        # 始终配置日志输出到控制台（仅输出 WARNING 及以上级别以避免过多干扰）
+        _logger.add(
+            sink=__import__("sys").stderr,
+            level="WARNING",
+            enqueue=False,
+            colorize=True,
+            format="<red>{time:HH:mm:ss}</red> | <level>{level: <8}</level> | <cyan>{name}:{function}</cyan> | <level>{message}</level>",
+        )
+        
+        # 如果是调试模式，额外输出 DEBUG 级别日志
         if settings.DEBUG:
             _logger.add(
-                sink=lambda msg: print(msg, end=""),
+                sink=__import__("sys").stderr,
                 level="DEBUG",
                 enqueue=False,
                 colorize=True,

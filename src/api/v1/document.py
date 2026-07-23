@@ -71,8 +71,10 @@ async def upload_document(
         return ResponseModel(data=data).model_dump()
 
     except ValidationError as e:
+        logger.error(f"[{e.__class__.__name__}] {e.message}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e)) from e
     except DocumentError as e:
+        logger.error(f"[{e.__class__.__name__}] {e.message}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.exception("Upload error")
@@ -191,6 +193,7 @@ async def delete_document(
         return ResponseModel(data=data).model_dump()
 
     except DocumentError as e:
+        logger.error(f"[{e.__class__.__name__}] {e.message}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.exception("Delete document error")
