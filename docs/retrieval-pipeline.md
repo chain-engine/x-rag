@@ -11,6 +11,7 @@
 - [Stage 3: 排序筛选](#stage-3-排序筛选)
 - [使用指南](#使用指南)
 - [自定义 Provider](#自定义-provider)
+- [最佳实践](#最佳实践)
 
 ---
 
@@ -38,28 +39,33 @@
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Stage 1: 查询理解 (Query Understanding)                                    │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │QueryRewrite │  │QueryExpand │  │   HyDE     │  │SubqueryDecomp│   │
-│  │ (并行执行)   │  │ (并行执行)   │  │ (并行执行)   │  │ (并行执行)   │   │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+│  Stage 1: 查询理解 (Query Understanding)  — 并行执行 → merge 合并           │
+│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐  ┌─────────────┐│
+│  │QueryPreproc   │  │IntentClassifier│ │EntityExtractor│  │SynonymExpand││
+│  │  (预处理)     │  │  (意图识别)    │  │  (实体抽取)   │  │(同义词扩展) ││
+│  └───────────────┘  └───────────────┘  └───────────────┘  └─────────────┘│
+│  ┌─────────────┐                                                              │
+│  │SimpleRewrite│                                                              │
+│  │(规则重写)    │                                                              │
+│  └─────────────┘                                                              │
 │                                      │                                     │
 │                                      ▼ merge()                              │
 │                      ┌───────────────────────────────────────┐             │
-│                      │   QueryUnderstandingResult            │             │
-│                      │  • processed_query (处理后的查询)    │             │
-│                      │  • sub_queries (子查询列表)          │             │
+│                      │   QueryUnderstandingResult           │             │
+│                      │  • processed_query (处理后的查询)   │             │
+│                      │  • intent (查询意图类型)            │             │
+│                      │  • entities (抽取的实体)            │             │
 │                      │  • expanded_terms (扩展词)           │             │
-│                      │  • hypothetical_doc (假设文档)        │             │
+│                      │  • sub_queries (子查询列表)          │             │
 │                      └───────────────────────────────────────┘             │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Stage 2: 候选召回 (Candidate Retrieval)                                    │
+│  Stage 2: 候选召回 (Candidate Retrieval)  — 多路并行 → 去重合并             │
 │  ┌─────────────────────────────┐  ┌─────────────────────────────┐           │
-│  │ ChromaVectorRetrieval      │  │   BM25KeywordRetrieval    │           │
-│  │    (向量 ANN 检索)         │  │    (关键词 BM25 检索)      │           │
+│  │ ChromaVectorRetrieval      │  │  BM25RetrievalProvider      │           │
+│  │    (稠密向量 ANN 检索)    │  │    (稀疏 BM25 关键词检索)   │           │
 │  └─────────────────────────────┘  └─────────────────────────────┘           │
 │                                      │                                     │
 │                                      ▼ dedup()                             │
@@ -70,11 +76,11 @@
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Stage 3: 排序筛选 (Ranking & Filtering)                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │MMRReranker │→ │RRFReranker │→ │Semantic    │→ │ScoreFilter │   │
-│  │ (多样性)    │  │ (排名融合)  │  │Reranker   │  │ (阈值过滤)  │   │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+│  Stage 3: 排序筛选 (Ranking & Filtering)  — 依次执行                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                        │
+│  │RRFReranker │→ │MMRReranker │→ │ScoreFilter │                        │
+│  │ (多路排名融合)│  │ (多样性重排) │  │ (阈值过滤)  │                        │
+│  └─────────────┘  └─────────────┘  └─────────────┘                        │
 │                                      │                                     │
 │                                      ▼                                     │
 │                      ┌───────────────────────────────────────┐             │
@@ -94,20 +100,22 @@
 retrieval/
 ├── pipeline.py              # 流水线编排器
 ├── understanding/
-│   ├── base.py             # 查询理解抽象基类
-│   ├── rewrite.py          # 查询重写
-│   ├── expansion.py        # 查询扩展
-│   ├── hyde.py            # HyDE 假设文档
-│   └── subquery.py        # 子查询分解
+│   ├── base.py            # 查询理解抽象基类 + QueryUnderstandingResult
+│   ├── preprocess.py      # 查询预处理（归一化/去停用词/标点处理）
+│   ├── intent.py          # 意图识别（7 种意图类型，基于规则）
+│   ├── entity.py          # 实体抽取（NER，正则 + 词典双模式）
+│   ├── rewrite.py         # 查询重写（SimpleQueryRewriter / LLMQueryRewriter）
+│   └── expansion.py       # 查询扩展（SynonymExpander / EmbeddingExpander）
 ├── candidate/
 │   ├── base.py            # 候选召回抽象基类
-│   ├── vector_retrieval.py # 向量检索
-│   └── keyword_retrieval.py # BM25 检索
+│   ├── vector_retrieval.py # 向量检索（Chroma ANN）
+│   ├── keyword_retrieval.py # 关键词检索抽象基类
+│   └── bm25_retrieval.py   # BM25 稀疏检索
 └── ranking/
     ├── base.py            # 排序抽象基类
     ├── mmr.py             # MMR 多样性重排
     ├── rrf.py             # RRF 排名融合
-    ├── semantic.py         # 语义重排
+    ├── semantic.py         # 语义重排（LLM）
     └── score_filter.py    # 阈值过滤
 ```
 
@@ -117,7 +125,7 @@ retrieval/
 
 ### 设计理念
 
-查询理解是检索系统的"大脑"，负责将用户的原始查询转换为更精确、更丰富的检索表达。
+查询理解是检索系统的"大脑"，负责将用户的原始查询转换为更精确、更丰富的检索表达。每个 Provider 并行执行，结果通过 `merge()` 合并。
 
 ### 查询理解结果
 
@@ -126,113 +134,149 @@ retrieval/
 class QueryUnderstandingResult:
     original_query: str          # 原始查询
     processed_query: str          # 处理后的查询
-    intent: str | None           # 查询意图
+    intent: str | None           # 查询意图类型
     sub_queries: list[str]       # 子查询列表
-    hypothetical_doc: str | None  # HyDE 假设文档
+    hypothetical_doc: str | None  # HyDE 假设文档（已废弃）
     expanded_terms: list[str]     # 扩展词列表
-    metadata: dict[str, Any]      # 附加元数据
+    metadata: dict[str, Any]      # 附加元数据（intent_meta / entity_meta / preprocess_meta）
 ```
 
 ### 提供的 Provider
 
-#### 1. SimpleQueryRewriter (简单查询重写)
+#### 1. QueryPreprocessor (查询预处理)
 
-基于规则的重写，无需 LLM 调用：
+对原始查询做归一化处理，为后续阶段提供干净的输入。
+
+**功能**：
+- 自定义正则替换
+- 去除标点符号
+- 大小写归一化（对英文生效）
+- 停用词过滤
+- 空白符归一化
+
+**代码示例**：
 
 ```python
-class SimpleQueryRewriter(BaseQueryUnderstandingProvider):
-    name = "simple_rewrite"
+from retrieval.understanding.preprocess import QueryPreprocessor
 
-    def process(self, query, context=None):
-        # 规则处理：
-        # 1. 去除停用词
-        # 2. 修正拼写（可选）
-        # 3. 规范化表达
-        return QueryUnderstandingResult(...)
+provider = QueryPreprocessor(
+    lowercase=True,
+    remove_punctuation=False,
+    stopwords={"的", "了", "在"},
+)
+
+result = provider.process("查询   RAG  技术的   原理是什么")
+# result.processed_query: "查询 rag 技术 原理 是什么"
 ```
 
-#### 2. LLMQueryRewriter (LLM 查询重写)
+#### 2. IntentClassifier (意图识别)
 
-使用 LLM 进行语义级别的重写：
+基于正则模式识别用户查询的意图类型，支撑下游检索路由决策。
+
+**支持的意图类型**（定义于 `constants/understanding.py`）：
+
+| 意图 | 说明 | 示例 |
+|------|------|------|
+| `factual` | 事实型 | "谁在 2020 年发明了 X" |
+| `opinion` | 观点型 | "对 X 的评价如何" |
+| `list` | 列表型 | "列出 X 的组成部分" |
+| `definition` | 定义型 | "什么是 X" |
+| `comparison` | 比较型 | "X 和 Y 的区别" |
+| `causal` | 因果型 | "为什么 / 结果是" |
+| `howto` | 操作型 | "如何做 X" |
+| `unknown` | 未知 | 未匹配到任何模式 |
+
+**代码示例**：
 
 ```python
-class LLMQueryRewriter(BaseQueryUnderstandingProvider):
-    name = "llm_rewrite"
+from retrieval.understanding.intent import IntentClassifier
 
-    def process(self, query, context=None):
-        # 1. 识别查询意图
-        # 2. 扩展查询表达
-        # 3. 生成多个检索查询
-        return QueryUnderstandingResult(...)
+provider = IntentClassifier()
+result = provider.process("RAG 和 Agent 的区别是什么")
+
+# result.intent: "comparison"
+# result.metadata["intent_meta"]["confidence"]: 0.9
+# result.metadata["intent_meta"]["matched_patterns"]: [...]
 ```
 
-#### 3. SynonymExpander (同义词扩展)
+#### 3. EntityExtractor (实体抽取)
 
-基于同义词词典扩展查询词：
+基于正则和自定义词典抽取查询中的命名实体。
+
+**支持的实体类型**（定义于 `constants/understanding.py`）：
+
+| 实体类型 | 说明 | 示例 |
+|----------|------|------|
+| `PERSON` | 人名 | — |
+| `LOCATION` | 地名 | 中国、美国 |
+| `ORG` | 组织/公司 | — |
+| `TIME` | 时间表达式 | 2024年、今天 |
+| `NUMBER` | 数字/金额 | 100元、50% |
+| `TECH` | 技术术语 | Python、RAG |
+| `PRODUCT` | 产品名 | — |
+
+**代码示例**：
 
 ```python
-class SynonymExpander(BaseQueryUnderstandingProvider):
-    name = "synonym_expander"
+from retrieval.understanding.entity import EntityExtractor, EntityType
 
-    def process(self, query, context=None):
-        # 1. 分词
-        # 2. 查找同义词
-        # 3. 生成扩展查询
-        return QueryUnderstandingResult(
-            expanded_terms=["RAG", "检索增强", "retrieval-augmented"]
-        )
+provider = EntityExtractor(
+    custom_entity_dict={
+        EntityType.TECH: {"RAG", "LLM", "Embedding", "BGE-M3"},
+    }
+)
+result = provider.process("2024年 RAG 技术有哪些进展")
+
+# result.metadata["entity_meta"]["entities"] 包含：
+# [{"text": "2024年", "type": "TIME", ...},
+#  {"text": "RAG", "type": "TECH", ...}]
 ```
 
-#### 4. EmbeddingExpander (向量扩展)
+#### 4. SynonymExpander (同义词扩展)
 
-使用 Embedding 模型查找语义相似的词：
+基于同义词词典扩展查询词，增加召回。
 
 ```python
-class EmbeddingExpander(BaseQueryUnderstandingProvider):
-    name = "embedding_expander"
+from retrieval.understanding.expansion import SynonymExpander
 
-    def process(self, query, context=None):
-        # 1. 查询词向量化
-        # 2. 在词向量空间中找相似词
-        # 3. 扩展查询
-        return QueryUnderstandingResult(...)
+provider = SynonymExpander()
+result = provider.process("RAG 的原理")
+# expanded_terms 包含 ["retrieval-augmented-generation", ...]
 ```
 
-#### 5. HyDE (假设文档)
+#### 5. EmbeddingExpander (向量扩展)
 
-生成假设性答案/文档，用于检索：
+使用 Embedding 模型在向量空间中查找语义相似的词。
 
 ```python
-class HyDEProvider(BaseQueryUnderstandingProvider):
-    name = "hyde"
+from retrieval.understanding.expansion import EmbeddingExpander
 
-    def process(self, query, context=None):
-        # 1. 让 LLM 生成假设性答案
-        # 2. 用假设答案进行检索
-        return QueryUnderstandingResult(
-            hypothetical_doc="RAG 是一种结合检索和生成的技术..."
-        )
+provider = EmbeddingExpander(embedding_model=embedding_model)
+result = provider.process("RAG 技术")
+# expanded_terms 包含语义相似词
 ```
 
-#### 6. SubqueryDecomposer (子查询分解)
+#### 6. SimpleQueryRewriter (规则重写)
 
-将复杂查询分解为简单子查询：
+基于规则的重写，无需 LLM 调用。
 
 ```python
-class SubqueryDecomposer(BaseQueryUnderstandingProvider):
-    name = "subquery_decomposer"
+from retrieval.understanding.rewrite import SimpleQueryRewriter
 
-    def process(self, query, context=None):
-        # 1. 分析查询结构
-        # 2. 识别子主题
-        # 3. 生成独立子查询
-        return QueryUnderstandingResult(
-            sub_queries=[
-                "RAG 的定义是什么",
-                "RAG 有哪些应用场景",
-                "RAG 如何实现"
-            ]
-        )
+provider = SimpleQueryRewriter()
+result = provider.process("RAG 技术是什么")
+# processed_query 经过规则规范化
+```
+
+#### 7. LLMQueryRewriter (LLM 重写)
+
+使用 LLM 进行语义级别的重写。
+
+```python
+from retrieval.understanding.rewrite import LLMQueryRewriter
+
+provider = LLMQueryRewriter(provider_name="deepseek")
+result = provider.process("RAG 技术是什么")
 ```
 
 ### 结果合并
@@ -244,7 +288,9 @@ merged = result1.merge(result2)
 # processed_query: 取最长的（信息量最丰富）
 # sub_queries: 并集去重
 # expanded_terms: 并集去重
-# hypothetical_doc: 用换行合并
+# intent: 取第一个非空的
+# hypothetical_doc: 用换行合并（已废弃）
+# metadata: 合并两个 dict
 ```
 
 ---
@@ -253,7 +299,7 @@ merged = result1.merge(result2)
 
 ### 设计理念
 
-候选召回是检索系统的"引擎"，负责从向量数据库和索引中快速召回候选文档。
+候选召回是检索系统的"引擎"，负责从向量数据库和索引中快速召回候选文档。Stage 2 支持多路并行召回，取长补短。
 
 ### 向量检索原理
 
@@ -271,52 +317,31 @@ merged = result1.merge(result2)
 基于 Chroma 的 ANN 检索：
 
 ```python
-class ChromaVectorRetrieval(BaseRetrievalProvider):
-    name = "chroma_vector"
+from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
 
-    def search(self, query, top_k=10, **kwargs):
-        # 1. 查询向量化
-        embedding = self.embedding_model.encode_single(query)
-
-        # 2. ANN 检索
-        results = self.vector_store.search(
-            query_embedding=embedding,
-            top_k=top_k,
-            where=kwargs.get("metadata_filter")
-        )
-
-        return results
+provider = ChromaVectorRetrieval(
+    vector_repo=vector_repo,
+    embedding_model=embedding_model,
+    top_k=10,
+)
 ```
 
-**支持的度量方式**：
+**支持的度量方式**（定义于 `constants/rag.py`）：
 - `cosine`: 余弦相似度
 - `euclidean`: 欧氏距离
 - `dot`: 点积
 
-#### 2. BM25KeywordRetrieval (关键词检索)
+#### 2. BM25RetrievalProvider (关键词检索)
 
 基于 BM25 的传统关键词检索：
 
 ```python
-class BM25KeywordRetrieval(BaseRetrievalProvider):
-    name = "bm25_keyword"
+from retrieval.candidate.bm25_retrieval import BM25RetrievalProvider
 
-    def __init__(self, k1=1.5, b=0.75):
-        self._k1 = k1
-        self._b = b
-
-    def search(self, query, top_k=10, **kwargs):
-        # 1. 分词
-        tokens = self._tokenize(query)
-
-        # 2. BM25 计算
-        scores = {}
-        for doc_id, doc_tokens in self._index.items():
-            score = self._bm25_score(tokens, doc_tokens)
-            scores[doc_id] = score
-
-        # 3. 排序取 Top-K
-        return self._get_top_k(scores, top_k)
+provider = BM25RetrievalProvider(
+    bm25_repo=bm25_repo,
+    top_k=10,
+)
 ```
 
 **BM25 公式**：
@@ -340,7 +365,7 @@ Stage 2 支持多路并行召回，然后去重合并：
 pipeline = RetrievalPipeline(
     candidate_providers=[
         ChromaVectorRetrieval(),
-        BM25KeywordRetrieval(),
+        BM25RetrievalProvider(),
     ],
 )
 
@@ -356,13 +381,33 @@ pipeline = RetrievalPipeline(
 
 ### 设计理念
 
-排序筛选是检索系统的"裁判"，负责从候选文档中选出最相关的结果。
+排序筛选是检索系统的"裁判"，负责从候选文档中选出最相关的结果。Stage 3 按顺序执行多个排序器。
 
 ### 提供的 Provider
 
-#### 1. MMRReranker (MMR 多样性重排)
+#### 1. RRFReranker (RRF 排名融合)
 
-**原理**：平衡相关性与多样性
+融合多个排名列表，兼顾各路召回的优势。
+
+**公式**：
+
+$$
+\text{RRF} = \sum_{i=1}^{k} \frac{1}{r_i + c}
+$$
+
+其中：
+- $r_i$: 文档在第 $i$ 个列表中的排名
+- $c$: 常数（默认 60）
+
+```python
+from retrieval.ranking.rrf import RRFReranker
+
+provider = RRFReranker(k=60)
+```
+
+#### 2. MMRReranker (MMR 多样性重排)
+
+平衡相关性与多样性，避免结果重复。
 
 **公式**：
 
@@ -378,82 +423,17 @@ $$
 - $S$: 已选择集合
 - $\lambda$: 权衡参数
 
-**代码实现**：
-
-```python
-class MMRReranker:
-    def rerank(self, query, candidates, lambda_param=0.5, top_k=None):
-        query_vector = self._get_query_vector(query)
-        doc_vectors = [self._get_doc_vector(doc) for doc in candidates]
-
-        selected = []
-        remaining = list(range(len(candidates)))
-
-        while remaining:
-            best_score = float('-inf')
-            best_idx = None
-
-            for idx in remaining:
-                relevance = self._similarity(query_vector, doc_vectors[idx])
-
-                # 计算与已选文档的最大相似度
-                max_sim = max(
-                    self._similarity(doc_vectors[idx], doc_vectors[s])
-                    for s in selected
-                ) if selected else 0
-
-                mmr_score = lambda_param * relevance - (1 - lambda_param) * max_sim
-
-                if mmr_score > best_score:
-                    best_score = mmr_score
-                    best_idx = idx
-
-            selected.append(best_idx)
-            remaining.remove(best_idx)
-
-        return [candidates[i] for i in selected[:top_k]]
-```
-
 **参数说明**：
 - `lambda_param`:
   - `1.0`: 完全相关性优先
   - `0.5`: 平衡
   - `0.0`: 完全多样性优先
 
-#### 2. RRFReranker (RRF 排名融合)
-
-**原理**：融合多个排名列表
-
-**公式**：
-
-$$
-\text{RRF} = \sum_{i=1}^{k} \frac{1}{r_i + c}
-$$
-
-其中：
-- $r_i$: 文档在第 $i$ 个列表中的排名
-- $c$: 常数（默认 60）
-
-**代码实现**：
-
 ```python
-class RRFReranker:
-    def __init__(self, k=60):
-        self._k = k
+from retrieval.ranking.mmr import MMRReranker
+from utils.similarity import DistanceType
 
-    def rerank(self, query, candidates, ranked_lists=None, top_k=None):
-        rrf_scores = {}
-
-        for ranked_list in ranked_lists:
-            for rank, doc in enumerate(ranked_list):
-                doc_id = doc["id"]
-                if doc_id not in rrf_scores:
-                    rrf_scores[doc_id] = 0.0
-                rrf_scores[doc_id] += 1.0 / (self._k + rank + 1)
-
-        # 按 RRF 分数排序
-        sorted_docs = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
-        return [doc_map[doc_id] for doc_id, _ in sorted_docs][:top_k]
+provider = MMRReranker(distance_type=DistanceType.COSINE)
 ```
 
 #### 3. SemanticReranker (语义重排)
@@ -461,17 +441,9 @@ class RRFReranker:
 使用 LLM 进行语义相关性评分：
 
 ```python
-class SemanticReranker:
-    def rerank(self, query, candidates, top_k=None):
-        scored_docs = []
+from retrieval.ranking.semantic import LLMSemanticReranker
 
-        for doc in candidates:
-            # 让 LLM 评分
-            score = self._llm_score(query, doc["text"])
-            scored_docs.append((score, doc))
-
-        scored_docs.sort(key=lambda x: x[0], reverse=True)
-        return [doc for _, doc in scored_docs][:top_k]
+provider = LLMSemanticReranker(provider_name="deepseek")
 ```
 
 #### 4. ScoreFilter (分值过滤)
@@ -479,26 +451,23 @@ class SemanticReranker:
 基于阈值的简单过滤：
 
 ```python
-class ScoreFilter:
-    def rerank(self, query, candidates, threshold=0.7, top_k=None):
-        filtered = [
-            doc for doc in candidates
-            if doc.get("score", 0) >= threshold
-        ]
-        filtered.sort(key=lambda x: x.get("score", 0), reverse=True)
-        return filtered[:top_k]
+from retrieval.ranking.score_filter import ScoreFilter
+
+provider = ScoreFilter(threshold=0.7)
 ```
 
 ### 排序流水线
 
-Stage 3 支持链式调用多个排序器：
+Stage 3 支持链式调用多个排序器。**注意顺序**：RRF 先融合多路结果，MMR 后做多样性重排。
 
 ```python
 pipeline = RetrievalPipeline(
     reranking_providers=[
-        MMRReranker(),           # 1. 多样性重排
-        SemanticReranker(),      # 2. 语义重排
-        ScoreFilter(threshold=0.7),  # 3. 阈值过滤
+        RRFReranker(k=60),                             # 1. 先 RRF 融合
+        MMRReranker(distance_type=DistanceType.COSINE), # 2. 后 MMR 多样性
+    ],
+    filter_providers=[
+        ScoreFilter(threshold=0.7),                    # 3. 最后阈值过滤
     ],
 )
 ```
@@ -511,23 +480,39 @@ pipeline = RetrievalPipeline(
 
 ```python
 from retrieval.pipeline import RetrievalPipeline
+from retrieval.understanding.preprocess import QueryPreprocessor
+from retrieval.understanding.intent import IntentClassifier
+from retrieval.understanding.entity import EntityExtractor
+from retrieval.understanding.expansion import SynonymExpander
 from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
+from retrieval.candidate.bm25_retrieval import BM25RetrievalProvider
+from retrieval.ranking.rrf import RRFReranker
 from retrieval.ranking.mmr import MMRReranker
 from retrieval.ranking.score_filter import ScoreFilter
+from utils.similarity import SimilaritySearchEngine, DistanceType
 
 # 创建流水线
 pipeline = RetrievalPipeline(
     understanding_providers=[
-        SynonymExpander(),
+        QueryPreprocessor(),    # 预处理：归一化、去停用词
+        IntentClassifier(),     # 意图识别：识别 7 种意图类型
+        EntityExtractor(),      # 实体抽取：NER
+        SynonymExpander(),      # 同义词扩展
     ],
     candidate_providers=[
-        ChromaVectorRetrieval(),
+        ChromaVectorRetrieval(),         # 稠密向量检索
+        BM25RetrievalProvider(),         # 稀疏 BM25 检索
     ],
     reranking_providers=[
-        MMRReranker(),
+        RRFReranker(k=60),                                # RRF 多路排名融合
+        MMRReranker(distance_type=DistanceType.COSINE),    # MMR 多样性重排
+    ],
+    filter_providers=[
         ScoreFilter(threshold=0.7),
     ],
+    similarity_engine=SimilaritySearchEngine(distance_type=DistanceType.COSINE),
     default_top_k=5,
+    default_threshold=0.7,
 )
 
 # 初始化
@@ -535,19 +520,21 @@ pipeline.initialize()
 
 # 执行检索
 results = pipeline.retrieve(
-    query="RAG 技术是什么",
+    query="RAG 技术的原理是什么",
     top_k=5,
-    use_mmr=True,
-    mmr_lambda=0.5,
 )
+
+# results 为 RetrievalResult，包含：
+# - documents: 检索到的文档列表
+# - metadata: 检索过程的元信息
 ```
 
 ### 高级用法
 
 ```python
 # 动态添加 Provider
-pipeline.add_understanding_provider(HyDEProvider())
-pipeline.add_candidate_provider(BM25KeywordRetrieval())
+pipeline.add_understanding_provider(SynonymExpander())
+pipeline.add_candidate_provider(BM25RetrievalProvider(bm25_repo=bm25_repo))
 
 # 获取统计信息
 stats = pipeline.get_stats()
@@ -555,9 +542,10 @@ print(stats)
 # {
 #     "type": "retrieval_pipeline",
 #     "stages": {
-#         "understanding": ["synonym_expander", "hyde"],
+#         "understanding": ["query_preprocessor", "intent_classifier",
+#                           "entity_extractor", "synonym_expander"],
 #         "candidate": ["chroma_vector", "bm25_keyword"],
-#         "reranking": ["mmr_reranker", "score_filter"]
+#         "reranking": ["rrf_reranker", "mmr_reranker"]
 #     },
 #     "defaults": {"top_k": 5, "threshold": 0.7}
 # }
@@ -575,20 +563,18 @@ from retrieval.understanding.base import (
     QueryUnderstandingResult
 )
 
-class MyQueryRewriter(BaseQueryUnderstandingProvider):
-    name = "my_rewrite"
-    description = "自定义查询重写"
+class MyQueryPreprocessor(BaseQueryUnderstandingProvider):
+    name = "my_preprocessor"
+    description = "自定义查询预处理"
 
     def process(self, query: str, context=None) -> QueryUnderstandingResult:
-        # 实现你的逻辑
         return QueryUnderstandingResult(
             original_query=query,
-            processed_query=query.upper(),  # 示例：转为大写
-            sub_queries=[query],  # 示例：生成子查询
+            processed_query=query.strip(),
         )
 
     def supports(self) -> list[str]:
-        return ["rewrite"]
+        return ["preprocess"]
 ```
 
 ### 自定义候选召回 Provider
@@ -636,41 +622,10 @@ class MyReranker(BaseRerankingProvider):
 ```python
 # 创建流水线时注入
 pipeline = RetrievalPipeline(
-    understanding_providers=[MyQueryRewriter()],
+    understanding_providers=[MyQueryPreprocessor()],
     candidate_providers=[MyVectorRetrieval(...)],
     reranking_providers=[MyReranker()],
 )
-```
-
----
-
-## 性能优化
-
-### 1. 批量处理
-
-```python
-# 批量检索
-queries = ["RAG 是什么", "RAG 的应用", "RAG 实现"]
-results = [pipeline.retrieve(q) for q in queries]
-```
-
-### 2. 批量检索
-
-```python
-# 批量检索
-queries = ["RAG 是什么", "RAG 的应用", "RAG 实现"]
-results = [pipeline.retrieve(q) for q in queries]
-```
-
-### 3. 异步执行
-
-```python
-import asyncio
-
-async def batch_retrieve(queries):
-    tasks = [pipeline.retrieve(q) for q in queries]
-    results = await asyncio.gather(*tasks)
-    return results
 ```
 
 ---
@@ -681,9 +636,9 @@ async def batch_retrieve(queries):
 
 | 场景 | 推荐配置 |
 |------|----------|
-| 通用问答 | SynonymExpander → ChromaVectorRetrieval → MMR + ScoreFilter |
-| 精确搜索 | SimpleQueryRewriter → BM25 → ScoreFilter |
-| 学术问答 | LLMQueryRewriter + SubqueryDecomposer → Chroma + BM25 → SemanticReranker |
+| 通用问答 | QueryPreprocessor → IntentClassifier → EntityExtractor → SynonymExpander → ChromaVector + BM25 → RRF + MMR |
+| 精确搜索 | QueryPreprocessor → BM25 → ScoreFilter |
+| 学术问答 | QueryPreprocessor → IntentClassifier → EntityExtractor → SynonymExpander → EmbeddingExpander → Chroma + BM25 → RRF + MMR + SemanticReranker |
 
 ### 2. 参数调优
 
@@ -691,7 +646,6 @@ async def batch_retrieve(queries):
 # MMR 参数
 results = pipeline.retrieve(
     query="...",
-    use_mmr=True,
     mmr_lambda=0.7,  # 提高相关性权重
 )
 
@@ -700,15 +654,40 @@ results = pipeline.retrieve(
     query="...",
     similarity_threshold=0.8,  # 提高精度
 )
+
+# Top-K 参数
+results = pipeline.retrieve(
+    query="...",
+    top_k=10,  # 召回更多候选
+)
 ```
 
-### 3. 监控和调优
+### 3. 意图识别路由示例
+
+```python
+result = IntentClassifier().process(query)
+
+if result.intent == "comparison":
+    # 比较类查询：增加 BM25 权重（字面匹配更重要）
+    pipeline = RetrievalPipeline(
+        candidate_providers=[BM25RetrievalProvider(), ChromaVectorRetrieval()],
+        ...
+    )
+elif result.intent == "definition":
+    # 定义类查询：增加向量检索权重（语义理解更重要）
+    pipeline = RetrievalPipeline(
+        candidate_providers=[ChromaVectorRetrieval(), BM25RetrievalProvider()],
+        ...
+    )
+```
+
+### 4. 监控和调优
 
 ```python
 # 获取统计信息
 stats = pipeline.get_stats()
-print(f"检索结果数: {len(results)}")
-print(f"候选文档数: {stats['candidate_stats']}")
+print(f"检索结果数: {len(results.documents)}")
+print(f"各阶段 Provider: {stats['stages']}")
 ```
 
 ---
@@ -716,5 +695,3 @@ print(f"候选文档数: {stats['candidate_stats']}")
 ## 相关文档
 
 - [架构设计文档](architecture.md) - 整体架构说明
-- [API 参考文档](api-reference.md) - 接口使用说明
-- [配置指南](configuration.md) - 配置项详解

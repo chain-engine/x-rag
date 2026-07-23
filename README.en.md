@@ -484,6 +484,22 @@ uv run pre-commit install
 | CI/CD | GitHub Actions |
 | Package Manager | uv |
 
+### Retrieval Subsystem Technology Details
+
+| Stage | Component | Description |
+|-------|-----------|-------------|
+| **Stage 1 Query Understanding** | QueryPreprocessor | Normalization, stopword removal, punctuation handling |
+| | IntentClassifier | Rule-based recognition of 7 intent types |
+| | EntityExtractor | Regex + dictionary dual-mode NER |
+| | SynonymExpander / EmbeddingExpander | Synonym / vector semantic expansion |
+| | SimpleQueryRewriter / LLMQueryRewriter | Rule-based / LLM rewrite |
+| **Stage 2 Candidate Retrieval** | ChromaVectorRetrieval | Chroma ANN dense vector retrieval |
+| | BM25RetrievalProvider | BM25 sparse keyword retrieval |
+| **Stage 3 Ranking & Filtering** | RRFReranker | RRF multi-source rank fusion |
+| | MMRReranker | MMR diversity reranking |
+| | SemanticReranker | LLM semantic reranking |
+| | ScoreFilter | Score threshold filtering |
+
 ## API Documentation
 
 ### Health Check
@@ -529,50 +545,12 @@ GET /api/v1/rag/stats
 
 ## Retrieval Subsystem Usage Guide
 
-The `src/retrieval/` subsystem supports flexible Provider swapping. Typical usage:
+For detailed usage instructions and algorithm principles, see [Retrieval Pipeline Documentation](./docs/retrieval-pipeline.md).
 
-```python
-from retrieval.pipeline import RetrievalPipeline
-from retrieval.understanding.preprocess import QueryPreprocessor
-from retrieval.understanding.intent import IntentClassifier
-from retrieval.understanding.entity import EntityExtractor
-from retrieval.understanding.expansion import SynonymExpander
-from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
-from retrieval.candidate.bm25_retrieval import BM25RetrievalProvider
-from retrieval.ranking.rrf import RRFReranker
-from retrieval.ranking.mmr import MMRReranker
-from retrieval.ranking.score_filter import ScoreFilter
-from utils.similarity import SimilaritySearchEngine, DistanceType
-
-pipeline = RetrievalPipeline(
-    understanding_providers=[
-        QueryPreprocessor(),    # Preprocess: normalization, stopword removal
-        IntentClassifier(),     # Intent detection: 7 intent types
-        EntityExtractor(),      # Entity extraction: NER
-        SynonymExpander(),      # Synonym expansion
-    ],
-    candidate_providers=[
-        ChromaVectorRetrieval(),         # Dense vector retrieval
-        BM25RetrievalProvider(),        # Sparse BM25 retrieval
-    ],
-    reranking_providers=[
-        RRFReranker(k=60),                            # RRF multi-source rank fusion
-        MMRReranker(distance_type=DistanceType.COSINE),  # MMR diversity reranking
-    ],
-    filter_providers=[
-        ScoreFilter(threshold=0.7),
-    ],
-    similarity_engine=SimilaritySearchEngine(distance_type=DistanceType.COSINE),
-    default_top_k=5,
-    default_threshold=0.7,
-)
-
-pipeline.initialize()
-results = pipeline.retrieve(
-    query="Query about RAG",
-    top_k=5,
-)
-```
+**Typical configuration**:
+- Stage 1 (Query Understanding): `QueryPreprocessor` → `IntentClassifier` → `EntityExtractor` → `SynonymExpander`
+- Stage 2 (Candidate Retrieval): `ChromaVectorRetrieval` (dense) + `BM25RetrievalProvider` (sparse), multi-source parallel
+- Stage 3 (Ranking & Filtering): `RRFReranker` (fusion) → `MMRReranker` (diversity) → `ScoreFilter` (threshold)
 
 ## Constants Management
 

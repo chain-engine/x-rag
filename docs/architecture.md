@@ -77,6 +77,7 @@ x-rag 是一个**生产级 RAG（检索增强生成）学习和实训项目**，
 | 数据层 | `repositories/` | 数据访问封装 | → Infras 层 |
 | 基础设施层 | `infras/` | 底层存储、模型封装 | 无业务依赖 |
 | 核心支撑层 | `core/` | 配置、日志、异常、IOC | 无业务依赖 |
+| 常量层 | `constants/` | 枚举类型、模式配置 | 无业务依赖 |
 
 ### 各层职责
 
@@ -139,8 +140,12 @@ class RAGService:
 #### 4. 检索子系统 (`retrieval/`)
 
 **职责**：
-- 三阶段检索流水线
+- 三阶段检索流水线（查询理解 → 候选召回 → 排序筛选）
 - 可插拔的 Provider 机制
+
+**数据访问**：
+- `VectorRepository` → Chroma 向量存储
+- `BM25Repository` → 内存倒排索引
 
 **详见**：[检索流水线文档](retrieval-pipeline.md)
 
@@ -184,6 +189,21 @@ class VectorRepository(BaseRepository):
 **特点**：
 - 不依赖任何业务层
 - 可独立使用
+
+#### 8. 常量层 (`constants/`)
+
+**职责**：
+- 集中管理所有枚举类型和模式配置
+- 消除代码中的魔法字符串和魔法数字
+
+**包含**：
+- `rag.py`: 文档状态、距离类型、默认参数
+- `generation.py`: LLM 提供商、温度等
+- `understanding.py`: 意图类型、实体类型、识别模式、停用词表
+
+```python
+from constants import IntentType, EntityType, INTENT_PATTERNS
+```
 
 ---
 
@@ -347,6 +367,7 @@ class BaseQueryUnderstandingProvider(ABC):
 ✅ Service/Utils → Core (配置/日志)
 ✅ RAG → Retrieval → Repository
 ✅ Repository → Infras
+✅ Retrieval/Repository → Constants
 ```
 
 ### 禁止的依赖关系

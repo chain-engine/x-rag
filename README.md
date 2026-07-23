@@ -484,6 +484,22 @@ uv run pre-commit install
 | CI/CD | GitHub Actions |
 | 包管理 | uv |
 
+### 检索子系统技术细节
+
+| 阶段 | 组件 | 说明 |
+|------|------|------|
+| **Stage 1 查询理解** | QueryPreprocessor | 归一化、去停用词、标点处理 |
+| | IntentClassifier | 基于规则识别 7 种意图类型 |
+| | EntityExtractor | 正则 + 词典双模式 NER |
+| | SynonymExpander / EmbeddingExpander | 同义词 / 向量语义扩展 |
+| | SimpleQueryRewriter / LLMQueryRewriter | 规则 / LLM 重写 |
+| **Stage 2 候选召回** | ChromaVectorRetrieval | Chroma ANN 稠密向量检索 |
+| | BM25RetrievalProvider | BM25 稀疏关键词检索 |
+| **Stage 3 排序筛选** | RRFReranker | RRF 多路排名融合 |
+| | MMRReranker | MMR 多样性重排 |
+| | SemanticReranker | LLM 语义重排 |
+| | ScoreFilter | 分值阈值过滤 |
+
 ## API 文档
 
 ### 健康检查
@@ -529,51 +545,13 @@ GET /api/v1/rag/stats
 
 ## 检索子系统使用指南
 
-检索子系统 `src/retrieval/` 支持灵活插拔，典型使用方式：
+详细的使用说明和算法原理请参阅 [检索流水线文档](./docs/retrieval-pipeline.md)。
 
-```python
-from retrieval.pipeline import RetrievalPipeline
-from retrieval.understanding.preprocess import QueryPreprocessor
-from retrieval.understanding.intent import IntentClassifier
-from retrieval.understanding.entity import EntityExtractor
-from retrieval.understanding.expansion import SynonymExpander
-from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
-from retrieval.candidate.bm25_retrieval import BM25RetrievalProvider
-from retrieval.ranking.rrf import RRFReranker
-from retrieval.ranking.mmr import MMRReranker
-from retrieval.ranking.score_filter import ScoreFilter
-from repositories.bm25_repository import BM25Repository
-from utils.similarity import SimilaritySearchEngine, DistanceType
+**典型配置**：
 
-pipeline = RetrievalPipeline(
-    understanding_providers=[
-        QueryPreprocessor(),    # 预处理：归一化、去停用词
-        IntentClassifier(),     # 意图识别：识别 7 种意图类型
-        EntityExtractor(),      # 实体抽取：NER
-        SynonymExpander(),      # 同义词扩展
-    ],
-    candidate_providers=[
-        ChromaVectorRetrieval(),          # 稠密向量检索
-        BM25RetrievalProvider(),          # 稀疏 BM25 检索
-    ],
-    reranking_providers=[
-        RRFReranker(k=60),               # RRF 多路排名融合
-        MMRReranker(distance_type=DistanceType.COSINE),  # MMR 多样性重排
-    ],
-    filter_providers=[
-        ScoreFilter(threshold=0.7),
-    ],
-    similarity_engine=SimilaritySearchEngine(distance_type=DistanceType.COSINE),
-    default_top_k=5,
-    default_threshold=0.7,
-)
-
-pipeline.initialize()
-results = pipeline.retrieve(
-    query="查询 RAG 相关内容",
-    top_k=5,
-)
-```
+- Stage 1（查询理解）：`QueryPreprocessor` → `IntentClassifier` → `EntityExtractor` → `SynonymExpander`
+- Stage 2（候选召回）：`ChromaVectorRetrieval`（稠密）+ `BM25RetrievalProvider`（稀疏），多路并行
+- Stage 3（排序筛选）：`RRFReranker`（融合）→ `MMRReranker`（多样性）→ `ScoreFilter`（阈值过滤）
 
 ## 常量管理
 
