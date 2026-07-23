@@ -17,11 +17,14 @@ x-rag 是一个**生产级 RAG（检索增强生成）学习和实训项目**，
 - **开箱即用**: 支持多环境切换、容器化部署，可快速搭建企业级 RESTful API 后端服务
 - **工程规范**: 遵循 PEP8、完整类型注解、生产级日志与异常处理
 
-## 核心特征
+### 核心特征
 
 - **OOP 检索流水线**: 三阶段可插拔架构（查询理解、候选召回、排序筛选），每阶段均支持多种算法 Provider 灵活替换
-- **向量检索**: 支持 Chroma 向量存储，集成 BGE-M3 多语言嵌入模型
-- **智能检索**: 支持 MMR、RRF、语义重排等多种排序算法，提升检索多样性
+- **查询预处理**: 归一化、去停用词、标点处理，为后续阶段提供干净的输入
+- **意图识别**: 基于规则识别 7 种查询意图类型（事实型、观点型、列表型、定义型、比较型、因果型、操作型），支撑下游路由决策
+- **实体抽取**: 正则 + 词典双模式 NER，抽取时间、数字、地点、技术术语等实体
+- **多路召回**: 稠密向量检索（Chroma ANN）+ 稀疏 BM25 关键词检索，并行召回取长补短
+- **RRF + MMR 排序**: RRF 融合多路召回结果后，再经 MMR 多样性重排，兼顾相关性与多样性
 - **灵活切分**: 提供字符级、单词级、句子级、段落级、语义级等多种文本切分策略
 - **多 LLM 支持**: 支持 DeepSeek、豆包、阿里云百炼、小米 Mimo 等主流 LLM 提供商
 - **依赖注入**: 内置通用 IOC 容器，支持单例/多例模式
@@ -33,86 +36,89 @@ x-rag 是一个**生产级 RAG（检索增强生成）学习和实训项目**，
 x-rag/
 ├── src/                          # 核心源码
 │   ├── api/                      # API 接口层
-│   │   ├── router.py             # 路由注册
-│   │   └── v1/                   # API v1 版本
-│   │       ├── health.py          # 健康检查
-│   │       ├── rag.py            # RAG 接口
-│   │       └── document.py        # 文档管理
+│   │   ├── router.py            # 路由注册
+│   │   └── v1/                  # API v1 版本
+│   │       ├── health.py         # 健康检查
+│   │       ├── rag.py           # RAG 接口
+│   │       └── document.py       # 文档管理
 │   ├── rag/                      # RAG 核心模块
-│   │   ├── pipeline.py           # RAG 流水线编排
-│   │   ├── retrieval.py          # 检索入口（委托 Pipeline）
-│   │   ├── augmentation.py       # 上下文增强
-│   │   └── generation.py         # LLM 生成
-│   ├── retrieval/                # 检索子系统（OOP 三阶段）
-│   │   ├── pipeline.py           # 检索流水线编排
-│   │   ├── understanding/        # Stage 1 — 查询理解
-│   │   │   ├── base.py           # 抽象基类
-│   │   │   ├── rewrite.py        # 查询重写
-│   │   │   ├── expansion.py      # 查询扩展
-│   │   │   ├── hyde.py           # HyDE 假设文档
-│   │   │   └── subquery.py       # 子查询分解
-│   │   ├── candidate/            # Stage 2 — 候选召回
-│   │   │   ├── base.py           # 抽象基类
-│   │   │   ├── vector_retrieval.py  # 向量检索
-│   │   │   └── keyword_retrieval.py  # BM25 关键词检索
-│   │   └── ranking/              # Stage 3 — 排序筛选
-│   │       ├── base.py           # 抽象基类
-│   │       ├── mmr.py            # MMR 多样性重排
-│   │       ├── rrf.py            # RRF 排名融合
-│   │       ├── semantic.py        # LLM 语义重排
-│   │       └── score_filter.py    # 分值阈值过滤
-│   ├── llms/                     # LLM 提供者
-│   │   ├── providers.py          # 多提供商注册（DeepSeek/豆包/阿里/Mimo）
-│   │   └── prompts.py            # 提示词模板管理
-│   ├── chunking/                 # 文本切分
-│   │   ├── base.py               # 切分抽象基类
+│   │   ├── pipeline.py          # RAG 流水线编排
+│   │   ├── retrieval.py         # 检索入口（委托 Pipeline）
+│   │   ├── augmentation.py     # 上下文增强
+│   │   └── generation.py        # LLM 生成
+│   ├── retrieval/               # 检索子系统（OOP 三阶段）
+│   │   ├── pipeline.py         # 检索流水线编排
+│   │   ├── understanding/       # Stage 1 — 查询理解
+│   │   │   ├── base.py         # 抽象基类
+│   │   │   ├── preprocess.py   # 查询预处理（归一化/去停用词）
+│   │   │   ├── intent.py       # 意图识别（7 种意图类型）
+│   │   │   ├── entity.py       # 实体抽取（NER）
+│   │   │   ├── rewrite.py      # 查询重写
+│   │   │   └── expansion.py    # 查询扩展（同义词/向量）
+│   │   ├── candidate/           # Stage 2 — 候选召回
+│   │   │   ├── base.py         # 抽象基类
+│   │   │   ├── vector_retrieval.py  # 向量 ANN 检索（Chroma）
+│   │   │   ├── keyword_retrieval.py # 关键词检索抽象
+│   │   │   └── bm25_retrieval.py    # BM25 稀疏检索
+│   │   └── ranking/             # Stage 3 — 排序筛选
+│   │       ├── base.py         # 抽象基类
+│   │       ├── mmr.py          # MMR 多样性重排
+│   │       ├── rrf.py          # RRF 排名融合
+│   │       ├── semantic.py     # 语义重排
+│   │       └── score_filter.py # 分值阈值过滤
+│   ├── llms/                    # LLM 提供者
+│   │   ├── providers.py        # 多提供商注册（DeepSeek/豆包/阿里/Mimo）
+│   │   └── prompts.py          # 提示词模板管理
+│   ├── chunking/                # 文本切分
+│   │   ├── base.py            # 切分抽象基类
 │   │   ├── langchain_provider.py  # LangChain 切分
-│   │   └── llama_index_provider.py # LlamaIndex 切分
-│   ├── repositories/             # 数据访问层
-│   │   ├── base_repository.py   # 基础仓库类
-│   │   ├── vector_repository.py  # 向量仓库
+│   │   └── llama_index_provider.py  # LlamaIndex 切分
+│   ├── repositories/            # 数据访问层
+│   │   ├── base_repository.py # 基础仓库类
+│   │   ├── vector_repository.py   # 向量仓库
+│   │   ├── bm25_repository.py     # BM25 仓库
 │   │   └── document_repository.py # 文档仓库
-│   ├── models/                   # ORM 实体层
-│   │   ├── document.py           # 文档实体
-│   │   └── vector.py             # 向量记录
-│   ├── infras/                   # 基础设施层
-│   │   ├── vector_store/        # 向量存储
-│   │   ├── document_store/       # 文档存储
-│   │   └── embedding/            # 嵌入模型
-│   ├── core/                     # 核心支撑层
-│   │   ├── config.py            # 配置中心
-│   │   ├── logger.py            # 日志模块
-│   │   ├── exceptions.py         # 异常定义
-│   │   └── container.py         # 依赖注入容器
-│   ├── schemas/                  # 数据模型
-│   │   ├── rag.py               # RAG 相关 Schema
-│   │   ├── document.py          # 文档相关 Schema
-│   │   └── health.py            # 健康检查 Schema
-│   ├── constants/                # 常量定义
-│   │   ├── rag.py               # RAG 常量
-│   │   ├── generation.py         # 生成常量
+│   ├── models/                  # ORM 实体层
+│   │   ├── document.py        # 文档实体
+│   │   └── vector.py          # 向量记录
+│   ├── infras/                 # 基础设施层
+│   │   ├── vector_store/       # 向量存储（Chroma）
+│   │   ├── document_store/     # 文档存储（JSON）
+│   │   └── embedding/          # 嵌入模型（BGE-M3）
+│   ├── core/                   # 核心支撑层
+│   │   ├── config.py          # 配置中心
+│   │   ├── logger.py         # 日志模块
+│   │   ├── exceptions.py      # 异常定义
+│   │   └── container.py      # 依赖注入容器
+│   ├── schemas/                 # 数据模型（Pydantic）
+│   │   ├── rag.py            # RAG 相关 Schema
+│   │   ├── document.py       # 文档相关 Schema
+│   │   └── health.py         # 健康检查 Schema
+│   ├── constants/               # 常量定义
+│   │   ├── rag.py            # RAG 常量
+│   │   ├── generation.py      # 生成常量
+│   │   ├── understanding.py   # 查询理解常量（意图类型/实体类型/识别模式）
 │   │   └── ...
-│   ├── utils/                    # 工具函数
-│   │   ├── similarity.py         # 相似度计算引擎
-│   │   ├── filters.py           # 元数据过滤引擎
-│   │   ├── index_optimizer.py   # 向量索引优化
-│   │   ├── reranker.py          # 重排序工具
-│   │   └── text_splitter.py     # 文本切分工具
-│   └── main.py                   # 应用入口
+│   ├── utils/                   # 工具函数
+│   │   ├── similarity.py      # 相似度计算引擎
+│   │   ├── filters.py        # 元数据过滤引擎
+│   │   ├── index_optimizer.py  # 向量索引优化
+│   │   └── text_splitter.py  # 文本切分工具
+│   └── main.py                 # 应用入口
 ├── tests/                        # 测试用例
 ├── examples/                     # 示例代码
 ├── scripts/                      # 运维脚本
 ├── docs/                         # 项目文档
 ├── .github/workflows/            # GitHub Actions
-├── .pre-commit-config.yaml     # Pre-commit 配置
-├── config.yaml                  # 配置文件
-├── .env.example                 # 环境变量模板
-├── docker-compose.yml           # Docker 编排
-├── Dockerfile                   # Docker 镜像
-├── pyproject.toml              # 项目配置（uv）
-├── CHANGELOG.md               # 变更日志
-├── LICENSE                     # MIT 协议
-└── README.md                  # 本文档
+├── .pre-commit-config.yaml    # Pre-commit 配置
+├── config.yaml                 # 配置文件
+├── .env.example                # 环境变量模板
+├── docker-compose.yml          # Docker 编排
+├── Dockerfile                  # Docker 镜像
+├── pyproject.toml             # 项目配置（uv）
+├── CHANGELOG.md              # 变更日志
+├── LICENSE                    # MIT 协议
+└── README.md                 # 本文档
 ```
 
 ## 系统架构
@@ -126,38 +132,36 @@ x-rag/
 ┌─────────────────────────────────────────────────────────┐
 │  Stage 1: 查询理解（并行执行 → merge 合并）               │
 │                                                         │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐   │
-│  │ QueryRewrite │ │QueryExpansion│ │    HyDE      │   │
-│  │  (LLM 重写)   │ │(同义词/向量扩展)│ │(假设文档)     │   │
-│  └──────────────┘ └──────────────┘ └──────────────┘   │
-│  ┌──────────────┐                                      │
-│  │SubqueryDecomp│                                      │
-│  │  (子查询分解)  │                                      │
-│  └──────────────┘                                      │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐  │
+│  │QueryPreproc  │ │ IntentClass  │ │EntityExtract │  │
+│  │ (预处理)      │ │ (意图识别)   │ │ (实体抽取)   │  │
+│  └──────────────┘ └──────────────┘ └──────────────┘  │
+│  ┌──────────────┐ ┌──────────────┐                    │
+│  │SynonymExpand │ │SimpleRewrite │                    │
+│  │(同义词扩展)   │ │ (规则重写)   │                    │
+│  └──────────────┘ └──────────────┘                    │
 │                        ↓ merge()                        │
-│             processed_query + sub_queries                │
-│             + expanded_terms + hypothetical_doc          │
+│          processed_query + intent + entities             │
+│          + expanded_terms + sub_queries                 │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│  Stage 2: 候选召回（多路并行 → 去重合并）                 │
+│  Stage 2: 候选召回（多路并行 → 去重合并）                │
 │                                                         │
-│  ┌──────────────────────┐  ┌──────────────────────┐    │
-│  │ ChromaVectorRetrieval│  │   BM25Retriever      │    │
-│  │   (向量 ANN 检索)     │  │   (关键词 BM25)       │    │
-│  └──────────────────────┘  └──────────────────────┘    │
+│  ┌──────────────────────┐  ┌──────────────────────┐  │
+│  │ ChromaVectorRetrieval │  │  BM25RetrievalProvider│  │
+│  │   (稠密向量 ANN)      │  │   (稀疏 BM25 关键词)   │  │
+│  └──────────────────────┘  └──────────────────────┘  │
 │                        ↓ 候选文档集合                     │
 └─────────────────────────────────────────────────────────┘
     │
     ▼
 ┌─────────────────────────────────────────────────────────┐
-│  Stage 3: 排序筛选（依次执行）                           │
+│  Stage 3: 排序筛选（依次执行）                          │
 │                                                         │
-│  MMRReranker ──→ RRFReranker ──→ SemanticReranker      │
-│  (多样性重排)    (排名融合)       (语义评分)               │
-│                        ↓                                │
-│                   ScoreFilter (阈值过滤)                  │
+│  RRFReranker ──→ MMRReranker ──→ ScoreFilter           │
+│  (多路排名融合)   (多样性重排)      (阈值过滤)            │
 │                        ↓                                │
 │              最终 Top-K 检索结果                          │
 └─────────────────────────────────────────────────────────┘
@@ -198,6 +202,7 @@ graph TB
     subgraph "数据访问层 (repositories)"
         REP1["vector_repository.py<br/>向量仓库"]
         REP2["document_repository.py<br/>文档仓库"]
+        REP3["bm25_repository.py<br/>BM25 仓库"]
     end
 
     subgraph "基础设施层 (infras)"
@@ -223,11 +228,15 @@ graph TB
         C4["container.py<br/>依赖注入"]
     end
 
+    subgraph "常量层 (constants)"
+        CON1["rag.py<br/>RAG 常量"]
+        CON2["understanding.py<br/>查询理解常量"]
+    end
+
     A1 --> RAG1
     A2 --> RAG2
     A3 --> SVC1
 
-    RAG2 --> RET1
     RAG2 --> RET1
     RAG1 --> RET1
     RAG1 --> RAG3
@@ -238,12 +247,13 @@ graph TB
     RET3 --> REP1
     SVC1 --> REP1
     SVC1 --> REP2
-    SVC1 --> CHK1
+    SVC1 --> REP3
     SVC1 --> CHK1
     CHK1 --> I3
 
     REP1 --> I1
     REP2 --> I2
+    RET3 --> REP3
 
     style A1 fill:#e1f5fe
     style A2 fill:#e1f5fe
@@ -256,8 +266,10 @@ graph TB
     style RET2 fill:#fff8e1
     style RET3 fill:#fff8e1
     style RET4 fill:#fff8e1
+    style SVC1 fill:#f1f8e9
     style REP1 fill:#e8f5e9
     style REP2 fill:#e8f5e9
+    style REP3 fill:#e8f5e9
     style I1 fill:#fce4ec
     style I2 fill:#fce4ec
     style I3 fill:#fce4ec
@@ -267,6 +279,8 @@ graph TB
     style C2 fill:#eceff1
     style C3 fill:#eceff1
     style C4 fill:#eceff1
+    style CON1 fill:#ede7f6
+    style CON2 fill:#ede7f6
 ```
 
 ### 模块依赖关系图
@@ -310,6 +324,10 @@ graph LR
             CORE["core/<br/>核心支撑层"]
         end
 
+        subgraph "constants/"
+            CONST["constants/<br/>常量定义"]
+        end
+
         subgraph "schemas/"
             SCHEMAS["schemas/<br/>数据模型"]
         end
@@ -330,6 +348,8 @@ graph LR
     SVC --> INFRAS
     SVC --> CHK
     REPO --> INFRAS
+    RET --> CONST
+    REPO --> CONST
 
     SCHEMAS -.-> CORE
     UTILS -.-> CORE
@@ -343,6 +363,7 @@ graph LR
     style REPO fill:#e8f5e9,stroke:#2e7d32
     style INFRAS fill:#fce4ec,stroke:#c2185b
     style CORE fill:#eceff1,stroke:#546e7a
+    style CONST fill:#ede7f6,stroke:#4527a0
     style SCHEMAS fill:#fff8e1,stroke:#ff8f00
     style UTILS fill:#f1f8e9,stroke:#558b2f
 ```
@@ -449,7 +470,7 @@ uv run pre-commit install
 
 ## 技术栈
 
-| 类别 | 技术 |
+|  类别 | 技术 |
 |------|------|
 | Web 框架 | FastAPI + Uvicorn |
 | 数据存储 | Chroma (向量数据库) |
@@ -512,23 +533,34 @@ GET /api/v1/rag/stats
 
 ```python
 from retrieval.pipeline import RetrievalPipeline
-from retrieval.understanding.rewrite import LLMQueryRewriter
-from retrieval.understanding.expansion import EmbeddingExpander
+from retrieval.understanding.preprocess import QueryPreprocessor
+from retrieval.understanding.intent import IntentClassifier
+from retrieval.understanding.entity import EntityExtractor
+from retrieval.understanding.expansion import SynonymExpander
 from retrieval.candidate.vector_retrieval import ChromaVectorRetrieval
+from retrieval.candidate.bm25_retrieval import BM25RetrievalProvider
+from retrieval.ranking.rrf import RRFReranker
 from retrieval.ranking.mmr import MMRReranker
 from retrieval.ranking.score_filter import ScoreFilter
+from repositories.bm25_repository import BM25Repository
 from utils.similarity import SimilaritySearchEngine, DistanceType
 
 pipeline = RetrievalPipeline(
     understanding_providers=[
-        LLMQueryRewriter(provider_name="deepseek"),
-        EmbeddingExpander(embedding_model=embedding_model),
+        QueryPreprocessor(),    # 预处理：归一化、去停用词
+        IntentClassifier(),     # 意图识别：识别 7 种意图类型
+        EntityExtractor(),      # 实体抽取：NER
+        SynonymExpander(),      # 同义词扩展
     ],
     candidate_providers=[
-        ChromaVectorRetrieval(),
+        ChromaVectorRetrieval(),          # 稠密向量检索
+        BM25RetrievalProvider(),          # 稀疏 BM25 检索
     ],
     reranking_providers=[
-        MMRReranker(distance_type=DistanceType.COSINE),
+        RRFReranker(k=60),               # RRF 多路排名融合
+        MMRReranker(distance_type=DistanceType.COSINE),  # MMR 多样性重排
+    ],
+    filter_providers=[
         ScoreFilter(threshold=0.7),
     ],
     similarity_engine=SimilaritySearchEngine(distance_type=DistanceType.COSINE),
@@ -540,8 +572,27 @@ pipeline.initialize()
 results = pipeline.retrieve(
     query="查询 RAG 相关内容",
     top_k=5,
-    use_mmr=True,
-    mmr_lambda=0.5,
+)
+```
+
+## 常量管理
+
+所有枚举类型和模式配置统一集中在 `src/constants/` 目录：
+
+```python
+from constants import (
+    # 意图类型枚举
+    IntentType,
+    # 实体类型枚举
+    EntityType,
+    # 意图识别模式
+    INTENT_PATTERNS,
+    # 实体抽取模式
+    ENTITY_PATTERNS,
+    # 默认停用词表
+    DEFAULT_QUERY_STOPWORDS,
+    # 距离类型
+    DistanceType,
 )
 ```
 
@@ -562,6 +613,6 @@ results = pipeline.retrieve(
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [uv](https://github.com/astral-sh/uv)
 - [Chroma](https://docs.trychroma.com/)
-- [Sentence Transformers](https://www.sbert.net/)
+- [BGE-M3](https://github.com/FlagOpen/FlagEmbedding)
 - [Pydantic](https://docs.pydantic.dev/)
 - [rank-bm25](https://github.com/dorianbrown/rank_bm25)
