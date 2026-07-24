@@ -7,6 +7,7 @@ Logger Module
 """
 
 import os
+from pathlib import Path
 from typing import Final
 from loguru import logger as _logger
 
@@ -21,9 +22,15 @@ except ImportError:
 # 配置日志
 def _configure_logger():
     """配置日志"""
-    # 确保日志目录存在
     if settings:
-        log_dir = os.path.dirname(settings.LOG_FILE_PATH)
+        # 确保日志目录存在
+        log_file_path = settings.LOG_FILE_PATH
+        if not os.path.isabs(log_file_path):
+            # 如果是相对路径，基于项目根目录（core 的上级目录）
+            project_root = Path(__file__).parent.parent.resolve()
+            log_file_path = str(project_root / log_file_path)
+        
+        log_dir = os.path.dirname(log_file_path)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
         
@@ -32,7 +39,7 @@ def _configure_logger():
         
         # 配置日志输出到文件
         _logger.add(
-            settings.LOG_FILE_PATH,
+            log_file_path,
             rotation=settings.LOG_ROTATION,
             retention=settings.LOG_RETENTION,
             compression="zip",

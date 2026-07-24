@@ -50,7 +50,7 @@ class ServerConfig:
 class LoggingConfig:
     """日志配置"""
     level: str = "INFO"
-    file_path: str = "../logs/x-rag-{time:YYYYMMDDHHmmss}.log"
+    file_path: str = "./logs/x-rag-{time:YYYYMMDDHHmmss}.log"
     rotation: str = "1 day"
     retention: str = "7 days"
 
@@ -178,7 +178,7 @@ class Settings:
             },
             "logging": {
                 "level": "INFO",
-                "file_path": "../logs/x-rag-{time:YYYYMMDDHHmmss}.log",
+                "file_path": "./logs/x-rag-{time:YYYYMMDDHHmmss}.log",
                 "rotation": "1 day",
                 "retention": "7 days",
             },
