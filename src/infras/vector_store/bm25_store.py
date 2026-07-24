@@ -185,6 +185,9 @@ class BM25IndexStore:
 
             logger.debug(f"Added {len(ids)} documents to BM25 index (total: {len(self._corpus)})")
 
+            # 立即持久化以确保数据不丢失
+            self._persist_to_disk()
+
         except Exception as e:
             logger.error(f"Failed to add documents to BM25 index: {e}")
             raise VectorStoreError(f"Failed to add documents: {e}") from e
@@ -283,6 +286,9 @@ class BM25IndexStore:
                 self._bm25 = self._rank_bm25(self._tokenized_corpus, k1=self.k1, b=self.b)
 
             logger.debug(f"Deleted {len(indices_to_remove)} documents from BM25 index")
+
+            # 立即持久化以确保数据不丢失
+            self._persist_to_disk()
 
         except Exception as e:
             logger.error(f"Failed to delete from BM25 index: {e}")

@@ -262,7 +262,7 @@ SQL: SELECT * FROM users LIMIT 100;""",
             ["capabilities", "tools"],
         )
 
-        logger.info(f"已注册 {len(self._templates)} 个默认提示模板")
+        logger.info(f"Registered {len(self._templates)} default prompt templates")
 
     def register(
         self,
@@ -286,7 +286,7 @@ SQL: SELECT * FROM users LIMIT 100;""",
             template=template,
             input_variables=input_variables or [],
         )
-        logger.debug(f"注册提示模板: {name}")
+        logger.debug(f"Registered prompt template: {name}")
 
     def get(self, name: str) -> PromptTemplateConfig:
         """

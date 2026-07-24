@@ -341,7 +341,7 @@ def get_llm_provider(provider_name: str) -> BaseLLMProvider:
             f"不支持的 LLM 提供者: {provider_name}。支持的提供者: {available}"
         )
 
-    logger.info(f"获取 LLM 提供者: {provider_name}")
+    logger.info(f"Getting LLM provider: {provider_name}")
     return _PROVIDER_REGISTRY[provider_name]()
 
 

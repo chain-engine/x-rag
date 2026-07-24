@@ -49,7 +49,7 @@ def get_chunking_provider(provider_name: str = "langchain", **kwargs) -> BaseChu
         raise ValueError(f"不支持的切分提供者: {provider_name}。支持的提供者: {available}")
 
     from core.logger import logger
-    logger.info(f"获取文档切分提供者: {provider_name}")
+    logger.info(f"Getting document chunking provider: {provider_name}")
     return _PROVIDERS[provider_name](**kwargs)
 
 
