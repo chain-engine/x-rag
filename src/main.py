@@ -38,19 +38,21 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("Starting x-rag application...")
 
-    try:
-        # 初始化Repository层
+    try:        
+        # 初始化文档存储 Repository层
+        doc_repo = DocumentRepository(storage_path="./data/documents")
+
+        # 初始化 BM25 Repository层（稀疏索引）
+        bm25_repo = BM25Repository(
+            persist_directory="./data/bm25",
+            index_name="documents",
+        )
+
+        # 初始化向量存储 Repository层（稠密索引）
         vector_repo = VectorRepository(
             persist_directory=settings.VECTOR_STORE_PERSIST_DIR,
             collection_name=settings.VECTOR_STORE_COLLECTION_NAME,
             distance_type=settings.VECTOR_STORE_DISTANCE,
-        )
-        doc_repo = DocumentRepository(storage_path="./data/documents")
-        
-        # 初始化 BM25 仓库（稀疏索引）
-        bm25_repo = BM25Repository(
-            persist_directory="./data/bm25",
-            index_name="documents",
         )
 
         # 初始化文档服务（同时构建稠密和稀疏索引）
@@ -64,7 +66,7 @@ async def lifespan(app: FastAPI):
             chunking_strategy=settings.TEXT_SPLITTER_STRATEGY,
         )
 
-        # 初始化 RAG 服务（启用多路召回）
+        # 初始化 RAG 服务
         retrieval = Retrieval(
             vector_repo=vector_repo,
             bm25_repo=bm25_repo,

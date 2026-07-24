@@ -159,7 +159,7 @@ class DocumentService(BaseService):
             embeddings = self._get_embedding_model().encode(chunk_texts, normalize=True)
             logger.info(f"Document {document_id}: encoded successfully")
 
-            # 存储向量
+            # 存储向量（构建稠密索引）
             ids = [chunk.chunk_id for chunk in chunks]
             metadatas = [
                 {
@@ -171,11 +171,10 @@ class DocumentService(BaseService):
             ]
             self._vector_repo.add(ids, embeddings, chunk_texts, metadatas)
 
-            # 同时构建 BM25 稀疏索引
-            if self._bm25_repo:
-                logger.info(f"Document {document_id}: building BM25 sparse index...")
-                self._bm25_repo.add(ids, chunk_texts, metadatas)
-                logger.info(f"Document {document_id}: BM25 index built")
+            # 构建 BM25 稀疏索引
+            logger.info(f"Document {document_id}: building BM25 sparse index...")
+            self._bm25_repo.add(ids, chunk_texts, metadatas)
+            logger.info(f"Document {document_id}: BM25 index built")
 
             # 更新文档状态
             self._doc_repo.update(document_id, {
